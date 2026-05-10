@@ -1,94 +1,100 @@
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Area</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Area</title>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="antialiased bg-gradient-to-t from-gray-300 via-gray-100 to-white bg-no-repeat">
-    <div class="container mx-auto px-6">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
 
-      <div class="flex flex-col md:flex-row h-screen justify-evenly md:items-center text-center md:text-left">
+<body class="antialiased min-h-screen bg-gradient-to-br from-slate-100 via-white to-slate-200">
 
-        <div class="flex flex-col w-full items-center md:items-start">
+    <main class="min-h-screen flex items-center justify-center px-5 py-8">
 
-          <div>
-            <svg
-              class="w-20 h-20 mx-auto md:float-left text-gray-700"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-              ></path>
-            </svg>
-          </div>
+        <!-- MAIN WRAPPER -->
+        <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
 
-          <h1 class="text-5xl font-bold text-gray-800">
-            Client Area
-          </h1>
+            <!-- Left Section -->
+            <div class="hidden lg:flex flex-col items-center justify-center bg-transparent px-12 py-14 text-center">
 
-          <p class="max-w-md mx-auto md:mx-0 text-gray-500">
-            Control and monitorize your website data from dashboard.
-          </p>
-
-        </div>
-
-        <div class="w-full md:w-full lg:w-9/12 mx-auto flex justify-center">
-
-          <div class="bg-white p-10 flex flex-col w-full max-w-md shadow-xl rounded-xl">
-
-            <h2 class="text-2xl font-bold text-gray-800 text-center mb-5">
-              Sign In
-            </h2>
-
-            <form method="POST" action="{{ route('login.post') }}" class="w-full">
-                @csrf
-
-                <div class="flex flex-col w-full my-5">
-                    <label for="username" class="text-gray-600 mb-2">
-                        Username
-                    </label>
-
-                    <input
-                        type="text"
-                        name="username"
-                        id="username"
-                        placeholder="Please insert your username"
-                        class="appearance-none border-2 border-gray-200 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:shadow-lg"
-                    />
+                <div class="w-24 h-24 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl mb-8">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                        ></path>
+                    </svg>
                 </div>
 
-                <div class="flex flex-col w-full my-5">
-                    <label for="password" class="text-gray-600 mb-2">
-                        Password
-                    </label>
+                <h1 class="text-6xl font-extrabold text-slate-900 leading-none tracking-tight">
+                    Title Here
+                </h1>
 
-                    <input
-                        type="password"
-                        name="password"
-                        id="password"
-                        placeholder="Please insert your password"
-                        class="appearance-none border-2 border-gray-200 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:shadow-lg"
-                    />
-                </div>
+                <p class="mt-6 text-lg text-slate-500 max-w-md leading-relaxed">
+                    Welcome to the Automated Internet Subscription Management System.
+                </p>
 
-                <div class="flex flex-col w-full my-5">
+            </div>
 
-                    <button
-                        type="submit"
-                        class="w-full py-4 bg-gray-800 rounded-lg text-white hover:bg-gray-700 transition"
-                    >
-                        <div class="flex flex-row items-center justify-center">
+            <!-- RIGHT SIDE -->
+            <section class="flex justify-center">
 
-                            <div class="mr-2">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- LOGIN CARD -->
+                <div class="w-full max-w-sm md:max-w-md bg-white border border-slate-200 rounded-3xl shadow-xl p-7 md:p-9">
+
+                    <div class="text-center mb-7">
+                        <h2 class="text-2xl md:text-3xl font-bold text-slate-800">
+                            Sign In
+                        </h2>
+
+                        <p class="text-sm text-slate-500 mt-2">
+                            Please sign in to continue.
+                        </p>
+                    </div>
+
+                    <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
+                        @csrf
+
+                        <!-- Username -->
+                        <div>
+                            <label for="username" class="block text-sm font-medium text-slate-700 mb-2">
+                                Username
+                            </label>
+
+                            <input
+                                type="text"
+                                name="username"
+                                id="username"
+                                placeholder="Enter your username"
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                            />
+                        </div>
+
+                        <!-- Password -->
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
+                                Password
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password"
+                                id="password"
+                                placeholder="Enter your password"
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                            />
+                        </div>
+
+                        <!-- Button -->
+                        <button
+                            type="submit"
+                            class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-slate-300/60 hover:bg-slate-700 active:scale-[0.98] transition"
+                        >
+                            <div class="flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
@@ -96,21 +102,20 @@
                                         d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
                                     ></path>
                                 </svg>
-                            </div>
 
-                            <div class="font-bold">
-                                Sign In
+                                <span>Sign In</span>
                             </div>
+                        </button>
 
-                        </div>
-                    </button>
+                    </form>
 
                 </div>
-            </form> 
-          </div>
+
+            </section>
+
         </div>
 
-      </div>
-    </div>
-  </body>
-  </html>
+    </main>
+
+</body>
+</html>
