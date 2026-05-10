@@ -2,8 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>@yield('title', 'Admin Panel')</title>
+
+    @php
+        $systemSettings = \App\Models\SystemSetting::first();
+    @endphp
+
+    <title>{{ $systemSettings->system_name ?? 'Client Area' }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    @if($systemSettings && $systemSettings->system_logo)
+        <link rel="icon" type="image/png" href="{{ asset('storage/' . $systemSettings->system_logo) }}">
+        <link rel="shortcut icon" href="{{ asset('storage/' . $systemSettings->system_logo) }}">
+    @else
+        <link rel="icon" type="image/png" href="{{ asset('appicon.png') }}">
+    @endif
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -23,17 +35,28 @@
                     </svg>
                 </button>
 
+                @php
+                    $systemSettings = \App\Models\SystemSetting::first();
+                @endphp
+
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                d="M12 6v12m6-6H6"/>
-                        </svg>
-                    </div>
+                    @if($systemSettings && $systemSettings->system_logo)
+                        <img src="{{ asset('storage/' . $systemSettings->system_logo) }}"
+                        class="w-10 h-10 object-contain"
+                        alt="System Logo">
+                    @else
+                        <div class="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md font-bold">
+                            {{ strtoupper(substr($systemSettings->system_name ?? 'S', 0, 1)) }}
+                        </div>
+                    @endif
 
                     <div>
-                        <h1 class="text-sm sm:text-base font-bold text-slate-900 leading-tight">Client Area</h1>
-                        <p class="hidden sm:block text-xs text-slate-500">Management Dashboard</p>
+                        <h1 class="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                            {{ $systemSettings->system_name ?? 'Client Area' }}
+                        </h1>
+                        <p class="hidden sm:block text-xs text-slate-500">
+                            Management Dashboard
+                        </p>
                     </div>
                 </div>
             </div>

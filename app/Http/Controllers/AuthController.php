@@ -6,13 +6,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Models\SystemSetting;
 
 class AuthController extends Controller
 {
     // Show Login Page
     public function showLogin()
     {
-        return view('auth.login');
+        $settings = SystemSetting::first();
+
+        return view('auth.login', compact('settings'));
     }
 
     // Handle Login

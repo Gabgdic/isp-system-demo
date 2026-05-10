@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\SubscriberController;
+use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Routes
@@ -17,9 +19,9 @@ Route::middleware('auth')->group(function () {
         ->name('logout');
 
     // Dashboard
-    Route::get('/dashboard', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->name('dashboard');Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->name('dashboard');
 
     // Admin
     Route::get('/admin', [AdminController::class, 'index'])
@@ -58,8 +60,19 @@ Route::middleware('auth')->group(function () {
     })->name('reports');
 
     // Settings
-    Route::get('/settings', function () {
-        return view('admin.settings');
-    })->name('settings');
+    Route::get('/settings', [SettingsController::class, 'index'])
+        ->name('settings');
+
+    Route::post('/settings/system/update', [SettingsController::class, 'updateSystem'])
+        ->name('settings.system.update');
+
+    Route::post('/settings/plans/store', [SettingsController::class, 'storePlan'])
+        ->name('settings.plans.store');
+
+    Route::put('/settings/plans/update/{id}', [SettingsController::class, 'updatePlan'])
+        ->name('settings.plans.update');
+
+    Route::post('/settings/plans/delete/{id}', [SettingsController::class, 'deletePlan'])
+        ->name('settings.plans.delete');
 
 });

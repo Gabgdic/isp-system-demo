@@ -240,13 +240,20 @@
                 </div>
 
                 <div>
-                    <label class="form-label">Plan Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="plan_name" class="form-input" placeholder="Example: Basic Plan" required>
-                </div>
+                    <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
+                    <select name="subscription_plan_id" class="form-input" required>
+                        <option value="">Select subscription plan</option>
 
-                <div>
-                    <label class="form-label">Monthly Fee <span class="text-red-500">*</span></label>
-                    <input type="number" name="monthly_fee" step="0.01" min="0" class="form-input" placeholder="0.00" required>
+                        @foreach($plans as $plan)
+                            <option value="{{ $plan->id }}">
+                                {{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <p class="text-xs text-slate-500 mt-1">
+                        Plan price is based on the current settings.
+                    </p>
                 </div>
 
                 <div>
@@ -328,13 +335,23 @@
                 </div>
 
                 <div>
-                    <label class="form-label">Plan Name <span class="text-red-500">*</span></label>
-                    <input id="edit_plan_name" type="text" name="plan_name" class="form-input" required>
-                </div>
+                    <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
+                    <select id="edit_subscription_plan_id" name="subscription_plan_id" class="form-input" required>
+                        <option value="">Select subscription plan</option>
 
-                <div>
-                    <label class="form-label">Monthly Fee <span class="text-red-500">*</span></label>
-                    <input id="edit_monthly_fee" type="number" name="monthly_fee" step="0.01" min="0" class="form-input" required>
+                        @foreach($plans as $plan)
+                            <option 
+                                value="{{ $plan->id }}"
+                                data-plan-name="{{ $plan->plan_name }}"
+                                data-price="{{ $plan->price }}">
+                                {{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <p class="text-xs text-slate-500 mt-1">
+                        Updating the plan will use the current price from Settings.
+                    </p>
                 </div>
 
                 <div>
@@ -480,8 +497,17 @@
         document.getElementById('edit_email').value = button.dataset.email || '';
         document.getElementById('edit_phone_number').value = button.dataset.phoneNumber || '';
         document.getElementById('edit_address').value = button.dataset.address || '';
-        document.getElementById('edit_plan_name').value = button.dataset.planName || '';
-        document.getElementById('edit_monthly_fee').value = button.dataset.monthlyFee || '';
+        
+        const editPlanSelect = document.getElementById('edit_subscription_plan_id');
+        const currentPlanName = button.dataset.planName || '';
+
+        editPlanSelect.value = '';
+
+        Array.from(editPlanSelect.options).forEach(option => {
+            if (option.dataset.planName === currentPlanName) {
+                editPlanSelect.value = option.value;
+            }
+        });
         document.getElementById('edit_status').value = button.dataset.status || 'active';
 
         modal.classList.remove('hidden');

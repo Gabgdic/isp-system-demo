@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Client Area</title>
+    <title>{{ $settings->system_name ?? 'Client Area' }}</title>
+
+    @if($settings && $settings->system_logo)
+        <link rel="icon" type="image/png" href="{{ asset('storage/' . $settings->system_logo) }}">
+        <link rel="shortcut icon" href="{{ asset('storage/' . $settings->system_logo) }}">
+    @else
+        <link rel="icon" type="image/png" href="{{ asset('appicon.png') }}">
+    @endif
 
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -12,25 +19,25 @@
 
     <main class="min-h-screen flex items-center justify-center px-5 py-8">
 
-        <!-- MAIN WRAPPER -->
         <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
 
             <!-- Left Section -->
             <div class="hidden lg:flex flex-col items-center justify-center bg-transparent px-12 py-14 text-center">
 
-                <div class="w-24 h-24 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl mb-8">
-                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                        ></path>
-                    </svg>
+                <div class="mb-8 flex justify-center">
+                    @if($settings && $settings->system_logo)
+                        <img src="{{ asset('storage/' . $settings->system_logo) }}"
+                            class="w-28 h-28 object-contain"
+                            alt="System Logo">
+                    @else
+                        <div class="w-24 h-24 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-4xl font-bold">
+                            {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
+                        </div>
+                    @endif
                 </div>
 
                 <h1 class="text-6xl font-extrabold text-slate-900 leading-none tracking-tight">
-                    Title Here
+                    {{ $settings->system_name ?? 'Client Area' }}
                 </h1>
 
                 <p class="mt-6 text-lg text-slate-500 max-w-md leading-relaxed">
@@ -39,11 +46,29 @@
 
             </div>
 
-            <!-- RIGHT SIDE -->
+            <!-- Right Side -->
             <section class="flex justify-center">
 
-                <!-- LOGIN CARD -->
                 <div class="w-full max-w-sm md:max-w-md bg-white border border-slate-200 rounded-3xl shadow-xl p-7 md:p-9">
+
+                    <!-- Mobile Logo -->
+                    <div class="lg:hidden text-center mb-6">
+                        <div class="flex justify-center mb-4">
+                            @if($settings && $settings->system_logo)
+                                <img src="{{ asset('storage/' . $settings->system_logo) }}"
+                                    class="w-20 h-20 object-contain"
+                                    alt="System Logo">
+                            @else
+                                <div class="w-20 h-20 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-3xl font-bold">
+                                    {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
+                                </div>
+                            @endif
+                        </div>
+
+                        <h1 class="text-xl font-extrabold text-slate-900">
+                            {{ $settings->system_name ?? 'Client Area' }}
+                        </h1>
+                    </div>
 
                     <div class="text-center mb-7">
                         <h2 class="text-2xl md:text-3xl font-bold text-slate-800">
@@ -55,10 +80,25 @@
                         </p>
                     </div>
 
+                    @if(session('error'))
+                        <div class="mb-5 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
+                    @if($errors->any())
+                        <div class="mb-5 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                            <ul class="list-disc list-inside space-y-1">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
                         @csrf
 
-                        <!-- Username -->
                         <div>
                             <label for="username" class="block text-sm font-medium text-slate-700 mb-2">
                                 Username
@@ -68,12 +108,13 @@
                                 type="text"
                                 name="username"
                                 id="username"
+                                value="{{ old('username') }}"
                                 placeholder="Enter your username"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                                required
                             />
                         </div>
 
-                        <!-- Password -->
                         <div>
                             <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
                                 Password
@@ -85,10 +126,10 @@
                                 id="password"
                                 placeholder="Enter your password"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                                required
                             />
                         </div>
 
-                        <!-- Button -->
                         <button
                             type="submit"
                             class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-slate-300/60 hover:bg-slate-700 active:scale-[0.98] transition"
