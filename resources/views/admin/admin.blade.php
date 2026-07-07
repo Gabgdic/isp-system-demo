@@ -161,14 +161,14 @@
 
                                         <div>
                                             <p class="font-semibold text-slate-800">{{ $admin->username }}</p>
-                                            <p class="text-xs text-slate-400">Admin account</p>
+                                            <p class="text-xs text-slate-400">{{ ucwords(str_replace('_', ' ', $admin->role)) }} account</p>
                                         </div>
                                     </div>
                                 </td>
 
                                 <td class="px-6 py-4">
                                     <span class="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
-                                        {{ $admin->role }}
+                                        {{ ucwords(str_replace('_', ' ', $admin->role)) }}
                                     </span>
                                 </td>
 
@@ -178,11 +178,25 @@
 
                                 <td class="px-6 py-4">
                                     @if(auth()->id() !== $admin->id)
-                                        <button
-                                            onclick="openDeleteModal({{ $admin->id }})"
-                                            class="px-4 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-600 hover:text-white transition-all duration-200">
-                                            Delete
-                                        </button>
+                                        <div class="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onclick="openEditModal({{ $admin->id }})"
+                                                class="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all duration-200"
+                                                title="Edit">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onclick="openDeleteModal({{ $admin->id }})"
+                                                class="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all duration-200"
+                                                title="Delete">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
                                     @else
                                         <span class="text-xs text-slate-400 italic">Current user</span>
                                     @endif
@@ -238,6 +252,15 @@
             </div>
 
             <div>
+                <label class="form-label">Role</label>
+                <select name="role" class="form-input" required>
+                    <option value="">Select role</option>
+                    <option value="super_admin">Super Admin</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+
+            <div>
                 <label class="form-label">Password</label>
                 <input type="password" name="password" class="form-input" required>
             </div>
@@ -249,6 +272,43 @@
 
             <button class="w-full py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
                 Create Admin
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Admin Modal -->
+<div id="editAdminModal"
+    class="hidden fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
+
+    <div class="modal-box bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border border-slate-200">
+
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">Edit Admin</h2>
+                <p class="text-sm text-slate-500">Update admin role.</p>
+            </div>
+
+            <button onclick="closeEditModal()"
+                class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition">
+                ✕
+            </button>
+        </div>
+
+        <form id="editAdminForm" method="POST" class="space-y-5">
+            @csrf
+            @method('PUT')
+
+            <div>
+                <label class="form-label">Role</label>
+                <select id="edit_role" name="role" class="form-input" required>
+                    <option value="super_admin">Super Admin</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+
+            <button class="w-full py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
+                Save Changes
             </button>
         </form>
     </div>
@@ -294,12 +354,6 @@
 
 <style>
     .admin-card {
-        transition: all 0.25s ease;
-    }
-
-    .admin-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
     }
 
     .form-label {
@@ -365,6 +419,22 @@
 
     function closeCreateModal() {
         const modal = document.getElementById('createAdminModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function openEditModal(id) {
+        const modal = document.getElementById('editAdminModal');
+        const form = document.getElementById('editAdminForm');
+
+        form.action = '/admin/update-role/' + id;
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeEditModal() {
+        const modal = document.getElementById('editAdminModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
     }

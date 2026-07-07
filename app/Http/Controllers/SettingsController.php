@@ -25,31 +25,20 @@ class SettingsController extends Controller
 
     public function updateSystem(Request $request)
     {
-        $settings = SystemSetting::firstOrCreate([
-            'id' => 1,
-        ], [
-            'system_name' => 'Client Area',
-            'system_logo' => null,
-        ]);
-
         $request->validate([
             'system_name' => 'required|string|max:255',
-            'system_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
+        // Save system settings
+        $settings = SystemSetting::first();
         $settings->system_name = $request->system_name;
-
         if ($request->hasFile('system_logo')) {
-            if ($settings->system_logo && Storage::disk('public')->exists($settings->system_logo)) {
-                Storage::disk('public')->delete($settings->system_logo);
-            }
-
-            $settings->system_logo = $request->file('system_logo')->store('system_logos', 'public');
+            $path = $request->file('system_logo')->store('system_logos', 'public');
+            $settings->system_logo = $path;
         }
-
         $settings->save();
 
-        return back()->with('success', 'System settings updated successfully.');
+        return back()->with('success', 'System settings updated successfully!');
     }
 
     public function storePlan(Request $request)

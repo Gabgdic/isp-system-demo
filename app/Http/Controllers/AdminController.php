@@ -12,12 +12,13 @@ class AdminController extends Controller
 {
     public function index()
     {
-        $admins = User::where('role', 'admin')->get();
+        // FIX: Fetch both standard admins and super admins
+        $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
 
         return view('admin.admin', compact('admins'));
     }
 
-    // UPDATE LOGGED-IN ADMIN
+    // UPDATE LOGGED-IN ADMIN PROFILE INFO
     public function update(Request $request)
     {
         $user = Auth::user();
@@ -35,7 +36,6 @@ class AdminController extends Controller
         }
 
         if ($request->hasFile('profile_photo')) {
-
             // Delete old photo if it exists
             if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
                 Storage::disk('public')->delete($user->profile_photo);
@@ -53,8 +53,10 @@ class AdminController extends Controller
     // CREATE ADMIN
     public function store(Request $request)
     {
+        // FIX: Validate the dynamic role field sent from the form
         $request->validate([
             'username' => 'required|string|max:255|unique:users,username',
+            'role' => 'required|string|in:admin,super_admin',
             'password' => 'required|min:6|confirmed',
             'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
@@ -65,14 +67,30 @@ class AdminController extends Controller
             $profilePhotoPath = $request->file('profile_photo')->store('profile_photos', 'public');
         }
 
+        // FIX: Use $request->role instead of hardcoding 'admin'
         User::create([
             'username' => $request->username,
             'password' => Hash::make($request->password),
-            'role' => 'admin',
+            'role' => $request->role,
             'profile_photo' => $profilePhotoPath,
         ]);
 
         return back()->with('success', 'Admin created successfully!');
+    }
+
+    // NEW METHOD: UPDATE OTHER ADMINS' ROLES
+    // This handles your JS call: form.action = '/admin/update-role/' + id;
+    public function updateRole(Request $request, $id)
+    {
+        $request->validate([
+            'role' => 'required|string|in:admin,super_admin',
+        ]);
+
+        $admin = User::whereIn('role', ['admin', 'super_admin'])->findOrFail($id);
+        $admin->role = $request->role;
+        $admin->save();
+
+        return back()->with('success', 'Admin role updated successfully.');
     }
 
     // DELETE ADMIN
@@ -92,8 +110,9 @@ class AdminController extends Controller
             return back()->with('error', 'Incorrect password.');
         }
 
+        // FIX: Scoped to both roles so super admins can be deleted too
         $admin = User::where('id', $id)
-            ->where('role', 'admin')
+            ->whereIn('role', ['admin', 'super_admin'])
             ->first();
 
         if (!$admin) {

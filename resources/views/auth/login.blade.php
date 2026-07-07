@@ -24,23 +24,23 @@
             <!-- Left Section -->
             <div class="hidden lg:flex flex-col items-center justify-center bg-transparent px-12 py-14 text-center">
 
-                <div class="mb-8 flex justify-center">
+                <div class="flex justify-center">
                     @if($settings && $settings->system_logo)
                         <img src="{{ asset('storage/' . $settings->system_logo) }}"
-                            class="w-28 h-28 object-contain"
+                            class="w-44 h-44 object-contain"
                             alt="System Logo">
                     @else
-                        <div class="w-24 h-24 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-4xl font-bold">
+                        <div class="w-56 h-56 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-8xl font-bold">
                             {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
                         </div>
                     @endif
                 </div>
 
-                <h1 class="text-6xl font-extrabold text-slate-900 leading-none tracking-tight">
+                <h1 class="text-5xl font-extrabold text-slate-900 leading-none tracking-tight mt-2">
                     {{ $settings->system_name ?? 'Client Area' }}
                 </h1>
 
-                <p class="mt-6 text-lg text-slate-500 max-w-md leading-relaxed">
+                <p class="mt-3 text-lg text-slate-500 max-w-md leading-relaxed">
                     Welcome to the Automated Internet Subscription Management System.
                 </p>
 
@@ -53,19 +53,19 @@
 
                     <!-- Mobile Logo -->
                     <div class="lg:hidden text-center mb-6">
-                        <div class="flex justify-center mb-4">
+                        <div class="flex justify-center">
                             @if($settings && $settings->system_logo)
                                 <img src="{{ asset('storage/' . $settings->system_logo) }}"
-                                    class="w-20 h-20 object-contain"
+                                    class="w-32 h-32 object-contain"
                                     alt="System Logo">
                             @else
-                                <div class="w-20 h-20 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-3xl font-bold">
+                                <div class="w-40 h-40 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-6xl font-bold">
                                     {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
                                 </div>
                             @endif
                         </div>
 
-                        <h1 class="text-xl font-extrabold text-slate-900">
+                        <h1 class="text-xl font-extrabold text-slate-900 mt-2">
                             {{ $settings->system_name ?? 'Client Area' }}
                         </h1>
                     </div>

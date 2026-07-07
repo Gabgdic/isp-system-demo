@@ -40,26 +40,23 @@ class SubscriberController extends Controller
             'address' => 'required|string|max:1000',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
             'status' => 'required|in:active,inactive,disconnected',
-            'email' => 'nullable|email|max:255',
             'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
-        
+
         $plan = SubscriptionPlan::findOrFail($request->subscription_plan_id);
 
         $profilePhotoPath = null;
-
         if ($request->hasFile('profile_photo')) {
             $profilePhotoPath = $request->file('profile_photo')->store('subscriber_photos', 'public');
         }
-        
+
         Subscriber::create([
             'full_name' => $request->full_name,
             'username' => $request->username,
-            'email' => $request->email,
             'phone_number' => $request->phone_number,
             'address' => $request->address,
-            'plan_name' => $request->plan_name,
-            'monthly_fee' => $request->monthly_fee,
+            'plan_name' => $plan->plan_name,
+            'monthly_fee' => $plan->price,
             'status' => $request->status,
             'profile_photo' => $profilePhotoPath,
         ]);
@@ -83,7 +80,6 @@ class SubscriberController extends Controller
             'address' => 'required|string|max:1000',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
             'status' => 'required|in:active,inactive,disconnected',
-            'email' => 'nullable|email|max:255',
             'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
@@ -91,7 +87,6 @@ class SubscriberController extends Controller
 
         $subscriber->full_name = $request->full_name;
         $subscriber->username = $request->username;
-        $subscriber->email = $request->email;
         $subscriber->phone_number = $request->phone_number;
         $subscriber->address = $request->address;
 

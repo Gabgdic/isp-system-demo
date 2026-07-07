@@ -53,14 +53,14 @@
 
         <div class="subscriber-card">
             <p class="text-sm text-slate-500 font-medium">Active Subscribers</p>
-            <h2 class="text-3xl font-bold text-green-600 mt-2">
+            <h2 class="text-3xl font-bold text-slate-900 mt-2">
                 {{ $activeSubscribers }}
             </h2>
         </div>
 
         <div class="subscriber-card">
             <p class="text-sm text-slate-500 font-medium">Disconnected</p>
-            <h2 class="text-3xl font-bold text-red-600 mt-2">
+            <h2 class="text-3xl font-bold text-slate-900 mt-2">
                 {{ $disconnectedSubscribers }}
             </h2>
         </div>
@@ -124,11 +124,11 @@
 
                             <td class="px-6 py-4">
                                 @if($subscriber->status === 'active')
-                                    <span class="status-badge bg-green-50 text-green-700">Active</span>
+                                    <span class="status-badge">Active</span>
                                 @elseif($subscriber->status === 'inactive')
-                                    <span class="status-badge bg-yellow-50 text-yellow-700">Inactive</span>
+                                    <span class="status-badge">Inactive</span>
                                 @else
-                                    <span class="status-badge bg-red-50 text-red-700">Disconnected</span>
+                                    <span class="status-badge">Disconnected</span>
                                 @endif
                             </td>
 
@@ -147,16 +147,23 @@
                                         data-plan-name="{{ $subscriber->plan_name }}"
                                         data-monthly-fee="{{ $subscriber->monthly_fee }}"
                                         data-status="{{ $subscriber->status }}"
-                                        class="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-600 hover:text-white transition-all duration-200">
-                                        Edit
+                                        class="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all duration-200"
+                                        title="Edit">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
                                     </button>
 
                                     <form action="{{ route('subscriber.delete', $subscriber->id) }}" method="POST"
-                                        onsubmit="return confirm('Are you sure you want to delete this subscriber?')">
+                                        onsubmit="return confirm('Are you sure you want to delete this subscriber?')"
+                                        class="inline">
                                         @csrf
 
-                                        <button class="px-4 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-600 hover:text-white transition-all duration-200">
-                                            Delete
+                                        <button class="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all duration-200"
+                                            title="Delete">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
                                         </button>
                                     </form>
 
@@ -383,12 +390,6 @@
         border-radius: 24px;
         padding: 24px;
         box-shadow: 0 8px 30px rgba(15, 23, 42, 0.04);
-        transition: all 0.25s ease;
-    }
-
-    .subscriber-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
     }
 
     .form-label {
@@ -420,6 +421,7 @@
         border-radius: 999px;
         font-size: 12px;
         font-weight: 700;
+        color: #475569;
     }
 
     .animate-fadeIn {

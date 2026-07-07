@@ -18,16 +18,10 @@ class DashboardController extends Controller
         $disconnectedSubscribers = Subscriber::where('status', 'disconnected')->count();
 
         $activePlans = SubscriptionPlan::where('status', 'active')->count();
-
         $estimatedMonthlyRevenue = Subscriber::where('status', 'active')->sum('monthly_fee');
 
-        $recentSubscribers = Subscriber::latest()
-            ->take(5)
-            ->get();
-
-        $plans = SubscriptionPlan::latest()
-            ->take(5)
-            ->get();
+        $recentSubscribers = Subscriber::latest()->take(5)->get();
+        $plans = SubscriptionPlan::latest()->take(5)->get();
 
         return view('admin.dashboard', compact(
             'totalAdmins',
@@ -38,7 +32,7 @@ class DashboardController extends Controller
             'activePlans',
             'estimatedMonthlyRevenue',
             'recentSubscribers',
-            'plans'
+            'plans',
         ));
     }
 }

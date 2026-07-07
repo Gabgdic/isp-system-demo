@@ -72,11 +72,7 @@
 
                 <div>
                     <label class="form-label">System Name <span class="text-red-500">*</span></label>
-                    <input type="text"
-                        name="system_name"
-                        value="{{ $settings->system_name }}"
-                        class="form-input"
-                        required>
+                    <input type="text" id="system_name" name="system_name" value="{{ $settings->system_name }}" class="form-input" required>
                 </div>
 
                 <div>
@@ -91,7 +87,7 @@
                     </p>
                 </div>
 
-                <button class="w-full py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
+                <button id="saveSettingsBtn" type="submit" class="w-full py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
                     Save System Settings
                 </button>
             </form>
@@ -289,12 +285,6 @@
 
 <style>
     .settings-card {
-        transition: all 0.25s ease;
-    }
-
-    .settings-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
     }
 
     .form-label {

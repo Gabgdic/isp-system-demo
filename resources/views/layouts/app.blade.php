@@ -67,7 +67,9 @@
                     <p class="text-sm font-semibold text-slate-800">
                         {{ Auth::user()->username ?? 'Guest' }}
                     </p>
-                    <p class="text-xs text-slate-500">Administrator</p>
+                    <p class="text-xs text-slate-500">
+                        {{ Auth::user()?->role === 'super_admin' ? 'Super Admin' : 'Administrator' }}
+                    </p>
                 </div>
 
                 @if(Auth::user()?->profile_photo)
@@ -131,16 +133,30 @@
                     </a>
                 </li>
 
-                <!-- Admin -->
-                <li>
-                    <a href="{{ route('admin') }}"
-                        class="nav-link {{ request()->routeIs('admin') ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
-                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 19h4a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-2m-2-4a3 3 0 1 0 0-4M3 18v-1a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm8-10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                        </svg>
-                        <span class="nav-text">Admin</span>
-                    </a>
-                </li>
+                <!-- ONLY SUPER ADMIN CAN VIEW ADMIN MANAGEMENT & SETTINGS -->
+                @if(Auth::user()?->role === 'super_admin')
+                    <!-- Admin -->
+                    <li>
+                        <a href="{{ route('admin') }}"
+                            class="nav-link {{ request()->routeIs('admin*') ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 19h4a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-2m-2-4a3 3 0 1 0 0-4M3 18v-1a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm8-10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                            </svg>
+                            <span class="nav-text">Admin</span>
+                        </a>
+                    </li>
+
+                    <!-- Settings -->
+                    <li>
+                        <a href="{{ route('settings') }}"
+                            class="nav-link {{ request()->routeIs('settings*') ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
+                            <svg class="nav-icon" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M10.8 5a3 3 0 0 0-5.7 0H4a1 1 0 1 0 0 2h1.2a3 3 0 0 0 5.7 0H20a1 1 0 1 0 0-2h-9.2ZM4 11h9.2a3 3 0 0 1 5.7 0H20a1 1 0 1 1 0 2h-1.2a3 3 0 0 1-5.7 0H4a1 1 0 1 1 0-2Zm1.2 6H4a1 1 0 1 0 0 2h1.2a3 3 0 0 0 5.7 0H20a1 1 0 1 0 0-2h-9.2a3 3 0 0 0-5.7 0Z"/>
+                            </svg>
+                            <span class="nav-text">Settings</span>
+                        </a>
+                    </li>
+                @endif
 
                 <!-- Reports -->
                 <li>
@@ -150,17 +166,6 @@
                             <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 19V5m0 14h16M8 17v-6m4 6V7m4 10v-4"/>
                         </svg>
                         <span class="nav-text">Reports</span>
-                    </a>
-                </li>
-
-                <!-- Settings -->
-                <li>
-                    <a href="{{ route('settings') }}"
-                        class="nav-link {{ request()->routeIs('settings') ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
-                        <svg class="nav-icon" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M10.8 5a3 3 0 0 0-5.7 0H4a1 1 0 1 0 0 2h1.2a3 3 0 0 0 5.7 0H20a1 1 0 1 0 0-2h-9.2ZM4 11h9.2a3 3 0 0 1 5.7 0H20a1 1 0 1 1 0 2h-1.2a3 3 0 0 1-5.7 0H4a1 1 0 1 1 0-2Zm1.2 6H4a1 1 0 1 0 0 2h1.2a3 3 0 0 0 5.7 0H20a1 1 0 1 0 0-2h-9.2a3 3 0 0 0-5.7 0Z"/>
-                        </svg>
-                        <span class="nav-text">Settings</span>
                     </a>
                 </li>
             </ul>
