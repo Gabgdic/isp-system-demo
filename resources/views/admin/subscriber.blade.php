@@ -237,6 +237,11 @@
                 </div>
 
                 <div>
+                    <label class="form-label">Password <span class="text-red-500">*</span></label>
+                    <input type="password" name="password" class="form-input" required>
+                </div>
+
+                <div>
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-input">
                 </div>
@@ -329,6 +334,14 @@
                 <div>
                     <label class="form-label">Username <span class="text-red-500">*</span></label>
                     <input id="edit_username" type="text" name="username" class="form-input" required>
+                </div>
+
+                <div>
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-input">
+                    <p class="text-xs text-slate-500 mt-1">
+                        Leave empty if you do not want to change the current password.
+                    </p>
                 </div>
 
                 <div>

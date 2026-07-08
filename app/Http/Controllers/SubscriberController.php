@@ -6,6 +6,7 @@ use App\Models\Subscriber;
 use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash; // Added for secure hashing
 use Illuminate\Validation\Rule;
 
 class SubscriberController extends Controller
@@ -36,6 +37,7 @@ class SubscriberController extends Controller
         $request->validate([
             'full_name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:subscribers,username',
+            'password' => 'required|string|min:6|max:255',
             'phone_number' => 'required|string|max:30',
             'address' => 'required|string|max:1000',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
@@ -53,6 +55,7 @@ class SubscriberController extends Controller
         Subscriber::create([
             'full_name' => $request->full_name,
             'username' => $request->username,
+            'password' => Hash::make($request->password),
             'phone_number' => $request->phone_number,
             'address' => $request->address,
             'plan_name' => $plan->plan_name,
@@ -76,6 +79,7 @@ class SubscriberController extends Controller
                 'max:255',
                 Rule::unique('subscribers', 'username')->ignore($subscriber->id),
             ],
+            'password' => 'nullable|string|min:6|max:255', // Added (nullable)
             'phone_number' => 'required|string|max:30',
             'address' => 'required|string|max:1000',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
@@ -89,12 +93,14 @@ class SubscriberController extends Controller
         $subscriber->username = $request->username;
         $subscriber->phone_number = $request->phone_number;
         $subscriber->address = $request->address;
-
-        // copied from selected plan
         $subscriber->plan_name = $plan->plan_name;
         $subscriber->monthly_fee = $plan->price;
-
         $subscriber->status = $request->status;
+
+        // Update password only if the user typed something in the field
+        if ($request->filled('password')) {
+            $subscriber->password = Hash::make($request->password);
+        }
 
         if ($request->hasFile('profile_photo')) {
             if ($subscriber->profile_photo && Storage::disk('public')->exists($subscriber->profile_photo)) {

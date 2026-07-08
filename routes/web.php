@@ -37,11 +37,9 @@ Route::middleware('auth')->group(function () {
     })->name('reports');
 
 
-    // ========================================================
-    // Exclusive Access Area (Super Admin Only)
-    // ========================================================
-    // Instead of passing a closure to middleware(), we apply a fallback
-    // controller-agnostic gate check that intercepting requests.
+    // ==================
+    // Super Admin Only
+    // ==================
     Route::group(['middleware' => [function ($request, $next) {
         if (auth()->user()?->role !== 'super_admin') {
             abort(403, 'Unauthorized action. Super Admin access required.');
@@ -64,4 +62,36 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/plans/delete/{id}', [SettingsController::class, 'deletePlan'])->name('settings.plans.delete');
         
     });
+});
+
+// ==========================
+// Subscriber Portal Routes
+// ==========================
+Route::group(['middleware' => [function ($request, $next) {
+    if (!session()->has('subscriber_logged_in') || !session()->has('subscriber_id')) {
+        return redirect()->route('login')->with('error', 'Please sign in to access your portal.');
+    }
+    return $next($request);
+}]], function () {
+
+    Route::get('/portal', function() {
+        $settings = \App\Models\SystemSetting::first();
+        $subscriber = \App\Models\Subscriber::find(session('subscriber_id'));
+        
+        if (!$subscriber) {
+            session()->forget(['subscriber_logged_in', 'subscriber_id']);
+            return redirect()->route('login');
+        }
+
+        return view('subscriber.portal', compact('subscriber', 'settings'));
+    })->name('subscriber.portal');
+
+    Route::post('/subscriber/logout', function (\Illuminate\Http\Request $request) {
+        session()->forget(['subscriber_logged_in', 'subscriber_id']);
+        
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')->with('status', 'Signed out successfully.');
+    })->name('subscriber.logout');
 });

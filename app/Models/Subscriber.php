@@ -10,6 +10,7 @@ class Subscriber extends Model
     protected $fillable = [
         'full_name',
         'username',
+        'password',
         'phone_number',
         'address',
         'plan_name',
