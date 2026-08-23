@@ -9,5 +9,7 @@ class SystemSetting extends Model
     protected $fillable = [
         'system_name',
         'system_logo',
+        'gcash_name',
+        'gcash_number',
     ];
 }

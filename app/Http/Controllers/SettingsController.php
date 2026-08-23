@@ -27,18 +27,41 @@ class SettingsController extends Controller
     {
         $request->validate([
             'system_name' => 'required|string|max:255',
+            'gcash_name' => 'required|string|max:255',
+            'gcash_number' => 'required|string|max:30',
+            'system_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        // Save system settings
         $settings = SystemSetting::first();
-        $settings->system_name = $request->system_name;
-        if ($request->hasFile('system_logo')) {
-            $path = $request->file('system_logo')->store('system_logos', 'public');
-            $settings->system_logo = $path;
+
+        if (!$settings) {
+            $settings = new SystemSetting();
         }
+
+        $settings->system_name = $request->system_name;
+        $settings->gcash_name = $request->gcash_name;
+        $settings->gcash_number = $request->gcash_number;
+
+        if ($request->hasFile('system_logo')) {
+
+            if (
+                $settings->system_logo &&
+                Storage::disk('public')->exists($settings->system_logo)
+            ) {
+                Storage::disk('public')->delete($settings->system_logo);
+            }
+
+            $settings->system_logo = $request
+                ->file('system_logo')
+                ->store('system', 'public');
+        }
+
         $settings->save();
 
-        return back()->with('success', 'System settings updated successfully!');
+        return back()->with(
+            'success',
+            'System settings updated successfully.'
+        );
     }
 
     public function storePlan(Request $request)

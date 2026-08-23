@@ -6,6 +6,9 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\SubscriberPortalController;
+use App\Http\Controllers\PaymentSubmissionController;
+use App\Http\Controllers\BillingController;
 
 // Guest Routes
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -27,9 +30,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/subscriber/delete/{id}', [SubscriberController::class, 'destroy'])->name('subscriber.delete');
 
     // Billing
-    Route::get('/billing', function () {
-        return view('admin.billing');
-    })->name('billing');
+    Route::get('/billing', [BillingController::class, 'index'])
+        ->name('billing');
+    Route::post('/billing/payment/{id}/approve', [BillingController::class, 'approve'])
+        ->name('billing.payment.approve');
+    Route::post('/billing/payment/{id}/reject', [BillingController::class, 'reject'])
+        ->name('billing.payment.reject');
 
     // Reports
     Route::get('/reports', function () {
@@ -74,17 +80,15 @@ Route::group(['middleware' => [function ($request, $next) {
     return $next($request);
 }]], function () {
 
-    Route::get('/portal', function() {
-        $settings = \App\Models\SystemSetting::first();
-        $subscriber = \App\Models\Subscriber::find(session('subscriber_id'));
-        
-        if (!$subscriber) {
-            session()->forget(['subscriber_logged_in', 'subscriber_id']);
-            return redirect()->route('login');
-        }
+    Route::get('/portal', [
+        SubscriberPortalController::class,
+        'index'
+    ])->name('subscriber.portal');
 
-        return view('subscriber.portal', compact('subscriber', 'settings'));
-    })->name('subscriber.portal');
+    Route::post('/subscriber/payment/submit', [
+        PaymentSubmissionController::class,
+        'store'
+    ])->name('subscriber.payment.submit');
 
     Route::post('/subscriber/logout', function (\Illuminate\Http\Request $request) {
         session()->forget(['subscriber_logged_in', 'subscriber_id']);
