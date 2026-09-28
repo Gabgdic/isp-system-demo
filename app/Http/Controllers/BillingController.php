@@ -9,34 +9,19 @@ use Illuminate\Support\Facades\DB;
 
 class BillingController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Billing Dashboard
-    |--------------------------------------------------------------------------
-    */
-
     public function index()
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Pending Payment Submissions
-        |--------------------------------------------------------------------------
-        */
-
+        // Pending Payment Submissions
         $pendingPayments = PaymentSubmission::with([
             'subscriber',
             'billingRecord',
+            'billingAllocations.billingRecord',
         ])
             ->where('status', 'pending')
             ->latest()
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Billing Records
-        |--------------------------------------------------------------------------
-        */
-
+        // Billing Records
         $billingRecords = BillingRecord::with('subscriber')
             ->orderByDesc('billing_year')
             ->orderByDesc('billing_month')
@@ -49,25 +34,16 @@ class BillingController extends Controller
         ));
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Approve Payment
-    |--------------------------------------------------------------------------
-    */
-
+    // Approve Payment
     public function approve($id)
     {
         $payment = PaymentSubmission::with([
             'billingRecord',
+            'billingAllocations.billingRecord',
             'subscriber',
         ])->findOrFail($id);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Make Sure Payment Is Still Pending
-        |--------------------------------------------------------------------------
-        */
-
+        // Make sure payment is still pending
         if ($payment->status !== 'pending') {
             return back()->with(
                 'error',
@@ -75,75 +51,54 @@ class BillingController extends Controller
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Make Sure Billing Record Exists
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$payment->billingRecord) {
-            return back()->with(
-                'error',
-                'The billing record associated with this payment could not be found.'
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent Approving A Paid Bill
-        |--------------------------------------------------------------------------
-        */
-
-        if ($payment->billingRecord->status === 'paid') {
-
-            $payment->update([
-                'status' => 'approved',
-                'reviewed_at' => now(),
-            ]);
-
-            return back()->with(
-                'error',
-                'This billing month has already been marked as paid.'
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Approve Payment
-        |--------------------------------------------------------------------------
-        */
-
         DB::transaction(function () use ($payment) {
 
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Multi-Bill Allocations Update
+            |--------------------------------------------------------------------------
+            */
+            if ($payment->billingAllocations->isNotEmpty()) {
+                foreach ($payment->billingAllocations as $allocation) {
+                    if ($allocation->billingRecord) {
+                        $allocation->billingRecord->update([
+                            'status' => 'paid',
+                            'paid_at' => now(),
+                        ]);
+                    }
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Single-Bill Legacy Update
+            |--------------------------------------------------------------------------
+            */
+            if ($payment->billingRecord) {
+                $payment->billingRecord->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                ]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 3. Update Payment Status
+            |--------------------------------------------------------------------------
+            */
             $payment->update([
                 'status' => 'approved',
                 'reviewed_at' => now(),
-            ]);
-
-            /*
-            |--------------------------------------------------------------
-            | Only the corresponding billing month becomes paid.
-            |--------------------------------------------------------------
-            */
-
-            $payment->billingRecord->update([
-                'status' => 'paid',
-                'paid_at' => now(),
             ]);
         });
 
         return back()->with(
             'success',
-            'Payment approved successfully. The corresponding billing month has been marked as paid.'
+            'Payment approved successfully. All billing records included in the payment have been marked as paid.'
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Reject Payment
-    |--------------------------------------------------------------------------
-    */
-
+    // Reject Payment
     public function reject(Request $request, $id)
     {
         $request->validate([
@@ -156,15 +111,11 @@ class BillingController extends Controller
 
         $payment = PaymentSubmission::with([
             'billingRecord',
+            'billingAllocations.billingRecord',
             'subscriber',
         ])->findOrFail($id);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Make Sure Payment Is Still Pending
-        |--------------------------------------------------------------------------
-        */
-
+        // Make sure payment is still pending
         if ($payment->status !== 'pending') {
             return back()->with(
                 'error',
@@ -172,57 +123,57 @@ class BillingController extends Controller
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Make Sure Billing Record Exists
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$payment->billingRecord) {
-            return back()->with(
-                'error',
-                'The billing record associated with this payment could not be found.'
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Reject Payment
-        |--------------------------------------------------------------------------
-        */
-
         DB::transaction(function () use ($payment, $request) {
 
+            $resetBillStatus = function ($bill) {
+                if (!$bill) return;
+
+                $status = 'unpaid';
+                if ($bill->due_date && $bill->due_date->isPast()) {
+                    $status = 'overdue';
+                }
+
+                $bill->update([
+                    'status' => $status,
+                    'paid_at' => null,
+                ]);
+            };
+
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Multi-Bill Allocations Revert
+            |--------------------------------------------------------------------------
+            */
+            if ($payment->billingAllocations->isNotEmpty()) {
+                foreach ($payment->billingAllocations as $allocation) {
+                    $resetBillStatus($allocation->billingRecord);
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Single-Bill Legacy Revert
+            |--------------------------------------------------------------------------
+            */
+            if ($payment->billingRecord) {
+                $resetBillStatus($payment->billingRecord);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 3. Update Payment Status
+            |--------------------------------------------------------------------------
+            */
             $payment->update([
                 'status' => 'rejected',
                 'admin_note' => $request->admin_note,
                 'reviewed_at' => now(),
             ]);
-
-            /*
-            |--------------------------------------------------------------
-            | Return only this billing month to unpaid/overdue.
-            |--------------------------------------------------------------
-            */
-
-            $status = 'unpaid';
-
-            if (
-                $payment->billingRecord->due_date &&
-                $payment->billingRecord->due_date->isPast()
-            ) {
-                $status = 'overdue';
-            }
-
-            $payment->billingRecord->update([
-                'status' => $status,
-                'paid_at' => null,
-            ]);
         });
 
         return back()->with(
             'success',
-            'Payment rejected. The billing month remains outstanding.'
+            'Payment rejected. All billing records included in the payment remain outstanding.'
         );
     }
 }

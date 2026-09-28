@@ -33,4 +33,11 @@ class BillingRecord extends Model
     {
         return $this->hasMany(PaymentSubmission::class);
     }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(
+            PaymentSubmissionBilling::class
+        );
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentSubmission extends Model
 {
@@ -26,6 +27,13 @@ class PaymentSubmission extends Model
     public function billingRecord(): BelongsTo
     {
         return $this->belongsTo(BillingRecord::class);
+    }
+
+    public function billingAllocations(): HasMany
+    {
+        return $this->hasMany(
+            PaymentSubmissionBilling::class
+        );
     }
 
     public function subscriber(): BelongsTo

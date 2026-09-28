@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SubscriberPortalController;
 use App\Http\Controllers\PaymentSubmissionController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\ReportsController;
 
 // Guest Routes
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -38,9 +39,8 @@ Route::middleware('auth')->group(function () {
         ->name('billing.payment.reject');
 
     // Reports
-    Route::get('/reports', function () {
-        return view('admin.reports');
-    })->name('reports');
+    Route::get('/reports', [ReportsController::class, 'index'])
+        ->name('reports');
 
 
     // ==================

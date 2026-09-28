@@ -3,45 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>{{ $settings->system_name ?? 'Client Area' }}</title>
 
     @if($settings && $settings->system_logo)
-        <link rel="icon" type="image/png" href="{{ asset('storage/' . $settings->system_logo) }}">
-        <link rel="shortcut icon" href="{{ asset('storage/' . $settings->system_logo) }}">
+        <link
+            rel="icon"
+            type="image/png"
+            href="{{ asset('storage/' . $settings->system_logo) }}"
+        >
+        <link
+            rel="shortcut icon"
+            href="{{ asset('storage/' . $settings->system_logo) }}"
+        >
     @else
-        <link rel="icon" type="image/png" href="{{ asset('appicon.png') }}">
+        <link
+            rel="icon"
+            type="image/png"
+            href="{{ asset('appicon.png') }}"
+        >
     @endif
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
 <body class="antialiased min-h-screen bg-gradient-to-br from-slate-100 via-white to-slate-200">
 
     <main class="min-h-screen flex items-center justify-center px-5 py-8">
 
-        <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-
+        <div
+            class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2
+                   gap-10 items-center"
+        >
+        
             <!-- Left Section -->
-            <div class="hidden lg:flex flex-col items-center justify-center bg-transparent px-12 py-14 text-center">
+            <div
+                class="hidden lg:flex flex-col items-center justify-center
+                    bg-transparent px-12 py-14 text-center min-w-0"
+            >
 
-                <div class="flex justify-center">
+                <div class="flex justify-center shrink-0">
+
                     @if($settings && $settings->system_logo)
-                        <img src="{{ asset('storage/' . $settings->system_logo) }}"
+
+                        <img
+                            src="{{ asset('storage/' . $settings->system_logo) }}"
                             class="w-44 h-44 object-contain"
-                            alt="System Logo">
+                            alt="System Logo"
+                        >
+
                     @else
-                        <div class="w-56 h-56 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-8xl font-bold">
-                            {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
+
+                        <div
+                            class="w-56 h-56 rounded-3xl bg-slate-900
+                                flex items-center justify-center shadow-xl
+                                text-white text-8xl font-bold"
+                        >
+                            {{ strtoupper(substr(
+                                $settings->system_name ?? 'C',
+                                0,
+                                1
+                            )) }}
                         </div>
+
                     @endif
+
                 </div>
 
-                <h1 class="text-5xl font-extrabold text-slate-900 leading-none tracking-tight mt-2">
+                <h1
+                    class="w-full max-w-xl mt-5
+                        text-4xl xl:text-5xl font-extrabold
+                        text-slate-900 leading-tight
+                        tracking-tight break-words
+                        whitespace-normal"
+                >
                     {{ $settings->system_name ?? 'Client Area' }}
                 </h1>
 
-                <p class="mt-3 text-lg text-slate-500 max-w-md leading-relaxed">
-                    Welcome to the Automated Internet Subscription Management System.
+                <p
+                    class="mt-3 text-lg text-slate-500
+                        max-w-md leading-relaxed"
+                >
+                    Welcome to the Automated Internet Subscription
+                    Management System.
                 </p>
 
             </div>
@@ -49,58 +93,120 @@
             <!-- Right Side -->
             <section class="flex justify-center">
 
-                <div class="w-full max-w-sm md:max-w-md bg-white border border-slate-200 rounded-3xl shadow-xl p-7 md:p-9">
+                <div
+                    class="w-full max-w-sm md:max-w-md bg-white
+                           border border-slate-200 rounded-3xl
+                           shadow-xl p-7 md:p-9"
+                >
 
                     <!-- Mobile Logo -->
                     <div class="lg:hidden text-center mb-6">
+
                         <div class="flex justify-center">
+
                             @if($settings && $settings->system_logo)
-                                <img src="{{ asset('storage/' . $settings->system_logo) }}"
+
+                                <img
+                                    src="{{ asset('storage/' . $settings->system_logo) }}"
                                     class="w-32 h-32 object-contain"
-                                    alt="System Logo">
+                                    alt="System Logo"
+                                >
+
                             @else
-                                <div class="w-40 h-40 rounded-3xl bg-slate-900 flex items-center justify-center shadow-xl text-white text-6xl font-bold">
-                                    {{ strtoupper(substr($settings->system_name ?? 'C', 0, 1)) }}
+
+                                <div
+                                    class="w-40 h-40 rounded-3xl bg-slate-900
+                                           flex items-center justify-center
+                                           shadow-xl text-white text-6xl
+                                           font-bold"
+                                >
+                                    {{ strtoupper(substr(
+                                        $settings->system_name ?? 'C',
+                                        0,
+                                        1
+                                    )) }}
                                 </div>
+
                             @endif
+
                         </div>
 
-                        <h1 class="text-xl font-extrabold text-slate-900 mt-2">
+                        <h1
+                            class="text-xl font-extrabold text-slate-900 mt-2"
+                        >
                             {{ $settings->system_name ?? 'Client Area' }}
                         </h1>
+
                     </div>
 
+                    <!-- Heading -->
                     <div class="text-center mb-7">
-                        <h2 class="text-2xl md:text-3xl font-bold text-slate-800">
+
+                        <h2
+                            class="text-2xl md:text-3xl font-bold text-slate-800"
+                        >
                             Sign In
                         </h2>
 
                         <p class="text-sm text-slate-500 mt-2">
                             Please sign in to continue.
                         </p>
+
                     </div>
 
+                    <!-- Session Error -->
                     @if(session('error'))
-                        <div class="mb-5 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+
+                        <div
+                            class="mb-5 p-4 rounded-2xl bg-red-50
+                                   border border-red-200 text-red-700
+                                   text-sm font-medium"
+                        >
                             {{ session('error') }}
                         </div>
+
                     @endif
 
+                    <!-- Validation Errors -->
                     @if($errors->any())
-                        <div class="mb-5 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+
+                        <div
+                            class="mb-5 p-4 rounded-2xl bg-red-50
+                                   border border-red-200 text-red-700
+                                   text-sm font-medium"
+                        >
+
                             <ul class="list-disc list-inside space-y-1">
+
                                 @foreach($errors->all() as $error)
+
                                     <li>{{ $error }}</li>
+
                                 @endforeach
+
                             </ul>
+
                         </div>
+
                     @endif
 
-                    <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
+                    <!-- Login Form -->
+                    <form
+                        method="POST"
+                        action="{{ route('login.post') }}"
+                        class="space-y-5"
+                    >
+
                         @csrf
 
+                        <!-- Username -->
                         <div>
-                            <label for="username" class="block text-sm font-medium text-slate-700 mb-2">
+
+                            <label
+                                for="username"
+                                class="block text-sm font-medium
+                                       text-slate-700 mb-2"
+                            >
                                 Username
                             </label>
 
@@ -110,13 +216,26 @@
                                 id="username"
                                 value="{{ old('username') }}"
                                 placeholder="Enter your username"
-                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                                class="w-full rounded-xl border
+                                       border-slate-300 px-4 py-3
+                                       text-sm text-slate-700
+                                       placeholder-slate-400
+                                       outline-none transition
+                                       focus:border-slate-700
+                                       focus:ring-4 focus:ring-slate-200"
                                 required
-                            />
+                            >
+
                         </div>
 
+                        <!-- Password -->
                         <div>
-                            <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
+
+                            <label
+                                for="password"
+                                class="block text-sm font-medium
+                                       text-slate-700 mb-2"
+                            >
                                 Password
                             </label>
 
@@ -125,17 +244,39 @@
                                 name="password"
                                 id="password"
                                 placeholder="Enter your password"
-                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-slate-700 focus:ring-4 focus:ring-slate-200"
+                                class="w-full rounded-xl border
+                                       border-slate-300 px-4 py-3
+                                       text-sm text-slate-700
+                                       placeholder-slate-400
+                                       outline-none transition
+                                       focus:border-slate-700
+                                       focus:ring-4 focus:ring-slate-200"
                                 required
-                            />
+                            >
+
                         </div>
 
+                        <!-- Sign In Button -->
                         <button
                             type="submit"
-                            class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-slate-300/60 hover:bg-slate-700 active:scale-[0.98] transition"
+                            class="w-full bg-slate-900 text-white
+                                   py-3.5 rounded-xl font-semibold
+                                   shadow-lg shadow-slate-300/60
+                                   hover:bg-slate-700
+                                   active:scale-[0.98]
+                                   transition"
                         >
-                            <div class="flex items-center justify-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                            <div
+                                class="flex items-center justify-center gap-2"
+                            >
+
+                                <svg
+                                    class="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
                                     <path
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
@@ -145,7 +286,9 @@
                                 </svg>
 
                                 <span>Sign In</span>
+
                             </div>
+
                         </button>
 
                     </form>

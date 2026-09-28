@@ -335,9 +335,7 @@
 
 
                                 <td class="px-6 py-4">
-
                                     <div class="flex items-center gap-2">
-
                                         <button
                                             type="button"
                                             onclick="openEditPlanModal(this)"
@@ -346,32 +344,46 @@
                                             data-price="{{ $plan->price }}"
                                             data-description="{{ $plan->description }}"
                                             data-status="{{ $plan->status }}"
-                                            class="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-600 hover:text-white transition-all duration-200"
-                                        >
-                                            Edit
+                                            class="p-2 rounded-lg text-slate-500 hover:bg-slate-200
+                                                hover:text-slate-900 transition-all duration-200"
+                                            title="Edit">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                                <path
+                                                    stroke="currentColor"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                                </path>
+                                            </svg>
                                         </button>
-
 
                                         <form
                                             action="{{ route('settings.plans.delete', $plan->id) }}"
                                             method="POST"
                                             onsubmit="return confirm('Are you sure you want to delete this plan?')"
+                                            class="inline"
                                         >
-
                                             @csrf
 
                                             <button
-                                                class="px-4 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-600 hover:text-white transition-all duration-200"
-                                            >
-                                                Delete
+                                                type="submit"
+                                                class="p-2 rounded-lg text-slate-500 hover:bg-slate-200
+                                                    hover:text-slate-900 transition-all duration-200"
+                                                title="Delete">
+                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                                    <path
+                                                        stroke="currentColor"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="2"
+                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                                    </path>
+                                                </svg>
                                             </button>
-
                                         </form>
-
                                     </div>
-
                                 </td>
-
                             </tr>
 
                         @empty

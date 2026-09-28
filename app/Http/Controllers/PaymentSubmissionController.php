@@ -4,46 +4,40 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingRecord;
 use App\Models\PaymentSubmission;
+use App\Models\PaymentSubmissionBilling;
 use App\Models\Subscriber;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PaymentSubmissionController extends Controller
 {
     public function store(Request $request)
     {
-        $subscriber = Subscriber::find(session('subscriber_id'));
+        $subscriber = Subscriber::find(
+            session('subscriber_id')
+        );
 
         if (!$subscriber) {
             return redirect()
                 ->route('login')
-                ->with('error', 'Please sign in to access your portal.');
+                ->with(
+                    'error',
+                    'Please sign in to access your portal.'
+                );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Request
-        |--------------------------------------------------------------------------
-        */
-
+        // Validate Request
         $request->validate([
-            'billing_record_id' => [
-                'required',
-                'integer',
-                'exists:billing_records,id',
-            ],
-
             'amount_paid' => [
                 'required',
                 'numeric',
                 'min:0.01',
             ],
-
             'reference_number' => [
                 'required',
                 'string',
                 'max:255',
             ],
-
             'payment_screenshot' => [
                 'required',
                 'image',
@@ -54,71 +48,81 @@ class PaymentSubmissionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Get Billing Record
+        | Get Payable Bills
         |--------------------------------------------------------------------------
-        |
-        | IMPORTANT:
-        | The billing record must belong to the logged-in subscriber.
-        |
+        | Only unpaid and overdue bills can be paid.
+        | Pending bills already have a payment under review.
         */
 
-        $bill = BillingRecord::where('id', $request->billing_record_id)
-            ->where('subscriber_id', $subscriber->id)
-            ->firstOrFail();
+        $payableBills = BillingRecord::where(
+                'subscriber_id',
+                $subscriber->id
+            )
+            ->whereIn('status', [
+                'unpaid',
+                'overdue',
+            ])
+            ->orderBy('billing_year')
+            ->orderBy('billing_month')
+            ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Already Paid
-        |--------------------------------------------------------------------------
-        */
-
-        if ($bill->status === 'paid') {
+        if ($payableBills->isEmpty()) {
             return back()->with(
                 'error',
-                'This billing month has already been paid.'
+                'You currently have no outstanding balance to pay.'
             );
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Pending Submission
+        | Prevent Duplicate Payment
         |--------------------------------------------------------------------------
-        |
-        | Prevent multiple submissions for the same billing month while
-        | an existing payment is waiting for admin review.
-        |
+        | Only one payment can be waiting for review at a time.
         */
 
-        $pendingSubmission = PaymentSubmission::where(
-                'billing_record_id',
-                $bill->id
+        $pendingPayment = PaymentSubmission::where(
+                'subscriber_id',
+                $subscriber->id
             )
-            ->where('subscriber_id', $subscriber->id)
             ->where('status', 'pending')
             ->exists();
 
-        if ($pendingSubmission) {
+        if ($pendingPayment) {
             return back()->with(
                 'error',
-                'You already have a payment submission waiting for review for this billing month.'
+                'You already have a payment waiting for administrator verification.'
             );
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Validate Payment Amount
+        | Calculate Outstanding Balance
         |--------------------------------------------------------------------------
-        |
-        | The payment must cover this billing record.
-        |
         */
 
-        if ((float) $request->amount_paid < (float) $bill->amount) {
+        $outstandingBalance = $payableBills->sum(
+            function ($bill) {
+                return (float) $bill->amount;
+            }
+        );
+
+        $amountPaid = (float) $request->amount_paid;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Require Full Outstanding Balance
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            round($amountPaid, 2) !==
+            round($outstandingBalance, 2)
+        ) {
             return back()->with(
                 'error',
-                'The amount paid must be at least ₱' .
-                number_format($bill->amount, 2) .
-                ' for this billing month.'
+                'You must pay the full outstanding balance of ₱' .
+                number_format($outstandingBalance, 2) .
+                '.'
             );
         }
 
@@ -128,8 +132,12 @@ class PaymentSubmissionController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $screenshotPath = $request->file('payment_screenshot')
-            ->store('payment_screenshots', 'public');
+        $screenshotPath = $request
+            ->file('payment_screenshot')
+            ->store(
+                'payment_screenshots',
+                'public'
+            );
 
         /*
         |--------------------------------------------------------------------------
@@ -137,28 +145,55 @@ class PaymentSubmissionController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        PaymentSubmission::create([
-            'billing_record_id' => $bill->id,
-            'subscriber_id' => $subscriber->id,
-            'amount_paid' => $request->amount_paid,
-            'reference_number' => $request->reference_number,
-            'payment_screenshot' => $screenshotPath,
-            'status' => 'pending',
-        ]);
+        DB::transaction(function () use (
+            $subscriber,
+            $payableBills,
+            $amountPaid,
+            $request,
+            $screenshotPath
+        ) {
+            $payment = PaymentSubmission::create([
+                // New payments use the allocation table.
+                'billing_record_id' => null,
+                'subscriber_id' => $subscriber->id,
+                'amount_paid' => $amountPaid,
+                'reference_number' =>
+                    $request->reference_number,
+                'payment_screenshot' =>
+                    $screenshotPath,
+                'status' => 'pending',
+            ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Mark Only This Billing Month As Pending
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | Attach All Outstanding Bills
+            |--------------------------------------------------------------------------
+            */
 
-        $bill->update([
-            'status' => 'pending',
-        ]);
+            foreach ($payableBills as $bill) {
+                PaymentSubmissionBilling::create([
+                    'payment_submission_id' =>
+                        $payment->id,
+                    'billing_record_id' =>
+                        $bill->id,
+                    'amount_applied' =>
+                        $bill->amount,
+                ]);
+
+                /*
+                Mark these bills as pending while
+                the admin reviews the payment.
+                */
+
+                $bill->update([
+                    'status' => 'pending',
+                ]);
+            }
+        });
 
         return back()->with(
             'success',
-            'Your payment for this billing month has been submitted and is waiting for admin verification.'
+            'Your payment for the full outstanding balance has been submitted and is waiting for administrator verification.'
         );
     }
 }

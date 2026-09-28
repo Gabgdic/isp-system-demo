@@ -11,35 +11,28 @@ class SubscriberPortalController extends Controller
 {
     public function index()
     {
-        $subscriber = Subscriber::find(session('subscriber_id'));
+        $subscriber = Subscriber::find(
+            session('subscriber_id')
+        );
 
         if (!$subscriber) {
             return redirect()
                 ->route('login')
-                ->with('error', 'Please sign in to access your portal.');
+                ->with(
+                    'error',
+                    'Please sign in to access your portal.'
+                );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Generate All Missing Monthly Billing Records
-        |--------------------------------------------------------------------------
-        |
-        | Starting from the subscriber's account creation month, generate
-        | every missing monthly billing record up to the current month.
-        |
-        | Existing records are NEVER replaced.
-        |
-        */
-
-        $accountStart = Carbon::parse($subscriber->created_at)
-            ->startOfMonth();
+        // Generate all missing monthly billing records.
+        $accountStart = Carbon::parse(
+            $subscriber->created_at
+        )->startOfMonth();
 
         $currentMonth = now()->startOfMonth();
-
         $month = $accountStart->copy();
 
         while ($month->lte($currentMonth)) {
-
             BillingRecord::firstOrCreate(
                 [
                     'subscriber_id' => $subscriber->id,
@@ -57,31 +50,22 @@ class SubscriberPortalController extends Controller
             $month->addMonth();
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Update Past Unpaid Records To Overdue
-        |--------------------------------------------------------------------------
-        |
-        | Only unpaid bills whose due date has already passed are changed
-        | to overdue.
-        |
-        | Pending and paid records are not touched.
-        |
-        */
-
-        BillingRecord::where('subscriber_id', $subscriber->id)
+        // Update old unpaid bills to overdue.
+        BillingRecord::where(
+                'subscriber_id',
+                $subscriber->id
+            )
             ->where('status', 'unpaid')
-            ->whereDate('due_date', '<', now()->toDateString())
+            ->whereDate(
+                'due_date',
+                '<',
+                now()->toDateString()
+            )
             ->update([
                 'status' => 'overdue',
             ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Get All Billing Records
-        |--------------------------------------------------------------------------
-        */
-
+        // Get all billing records.
         $billingRecords = BillingRecord::where(
                 'subscriber_id',
                 $subscriber->id
@@ -90,94 +74,59 @@ class SubscriberPortalController extends Controller
             ->orderByDesc('billing_month')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Outstanding Bills
-        |--------------------------------------------------------------------------
-        |
-        | Pending bills are included in the outstanding balance because
-        | payment has not yet been approved.
-        |
-        */
+        // Bills that can currently be paid.
+        $payableBills = $billingRecords->filter(
+            function ($bill) {
+                return in_array(
+                    $bill->status,
+                    [
+                        'unpaid',
+                        'overdue',
+                    ]
+                );
+            }
+        );
 
-        $outstandingBills = $billingRecords->filter(function ($bill) {
-            return in_array($bill->status, [
-                'unpaid',
-                'overdue',
-                'pending',
-            ]);
-        });
+        // Bills with a payment under review.
+        $pendingBills = $billingRecords->filter(
+            function ($bill) {
+                return $bill->status === 'pending';
+            }
+        );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Payable Bills
-        |--------------------------------------------------------------------------
-        |
-        | Only unpaid and overdue bills can receive a new payment
-        | submission.
-        |
-        | Pending bills are already waiting for admin verification.
-        |
-        */
+        // Full payable outstanding balance.
+        $outstandingBalance = $payableBills->sum(
+            function ($bill) {
+                return (float) $bill->amount;
+            }
+        );
 
-        $payableBills = $billingRecords->filter(function ($bill) {
-            return in_array($bill->status, [
-                'unpaid',
-                'overdue',
-            ]);
-        });
+        // Current month bill.
+        $currentBill = $billingRecords->first(
+            function ($bill) use ($currentMonth) {
+                return
+                    (int) $bill->billing_year ===
+                        (int) $currentMonth->year
+                    &&
+                    (int) $bill->billing_month ===
+                        (int) $currentMonth->month;
+            }
+        );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Outstanding Balance
-        |--------------------------------------------------------------------------
-        */
-
-        $outstandingBalance = $outstandingBills->sum(function ($bill) {
-            return (float) $bill->amount;
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Payable Balance
-        |--------------------------------------------------------------------------
-        |
-        | This is useful for showing how much can currently be submitted.
-        |
-        */
-
-        $payableBalance = $payableBills->sum(function ($bill) {
-            return (float) $bill->amount;
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Current Month Bill
-        |--------------------------------------------------------------------------
-        */
-
-        $currentBill = $billingRecords->first(function ($bill) use ($currentMonth) {
-            return (int) $bill->billing_year === (int) $currentMonth->year
-                && (int) $bill->billing_month === (int) $currentMonth->month;
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | GCash Settings
-        |--------------------------------------------------------------------------
-        */
-
+        // GCash settings.
         $settings = SystemSetting::first();
 
-        return view('subscriber.portal', compact(
-            'subscriber',
-            'settings',
-            'billingRecords',
-            'outstandingBills',
-            'payableBills',
-            'outstandingBalance',
-            'payableBalance',
-            'currentBill'
-        ));
+        return view(
+            'subscriber.portal',
+            compact(
+                'subscriber',
+                'settings',
+                'billingRecords',
+                'payableBills',
+                'pendingBills',
+                'outstandingBalance',
+                'currentBill'
+            )
+        );
     }
 }
