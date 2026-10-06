@@ -31,16 +31,32 @@ Route::middleware('auth')->group(function () {
     Route::post('/subscriber/delete/{id}', [SubscriberController::class, 'destroy'])->name('subscriber.delete');
 
     // Billing
-    Route::get('/billing', [BillingController::class, 'index'])
-        ->name('billing');
-    Route::post('/billing/payment/{id}/approve', [BillingController::class, 'approve'])
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+
+        // SOA and OR Modal
+        Route::get('/billing/soa/preview/{subscriberId}', [BillingController::class, 'soaPreview'])
+            ->name('billing.soa.preview');
+        Route::get('/billing/soa/download/{subscriberId}', [BillingController::class, 'soaDownload'])
+            ->name('billing.soa.download');
+        Route::get('/billing/receipt/preview/{billingRecord}', [BillingController::class, 'previewReceipt'])
+            ->name('billing.receipt.preview');
+
+    Route::post('/billing/payment/approve/{id}', [BillingController::class, 'approve'])
         ->name('billing.payment.approve');
-    Route::post('/billing/payment/{id}/reject', [BillingController::class, 'reject'])
+    Route::post('/billing/payment/reject/{id}', [BillingController::class, 'reject'])
         ->name('billing.payment.reject');
+    Route::post('/billing/plans/store', [BillingController::class, 'storePlan'])
+        ->name('billing.plans.store');
+    Route::post('/billing/plans/update/{id}', [BillingController::class, 'updatePlan'])
+        ->name('billing.plans.update');
+    Route::post('/billing/plans/delete/{id}', [BillingController::class, 'deletePlan'])
+        ->name('billing.plans.delete');
 
     // Reports
     Route::get('/reports', [ReportsController::class, 'index'])
         ->name('reports');
+    Route::get('/reports/soa/{subscriber_id}', [ReportsController::class, 'generateSOA'])
+        ->name('reports.soa');
 
 
     // ==================
@@ -63,9 +79,6 @@ Route::middleware('auth')->group(function () {
         // Settings
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
         Route::post('/settings/system/update', [SettingsController::class, 'updateSystem'])->name('settings.system.update');
-        Route::post('/settings/plans/store', [SettingsController::class, 'storePlan'])->name('settings.plans.store');
-        Route::put('/settings/plans/update/{id}', [SettingsController::class, 'updatePlan'])->name('settings.plans.update');
-        Route::post('/settings/plans/delete/{id}', [SettingsController::class, 'deletePlan'])->name('settings.plans.delete');
         
     });
 });
@@ -84,6 +97,18 @@ Route::group(['middleware' => [function ($request, $next) {
         SubscriberPortalController::class,
         'index'
     ])->name('subscriber.portal');
+
+    // New SOA Route for Subscribers
+    Route::get('/portal/soa', [
+        SubscriberPortalController::class,
+        'generateSOA'
+    ])->name('subscriber.soa');
+
+    // New Profile Update Route
+    Route::post('/portal/profile/update', [
+        SubscriberPortalController::class,
+        'updateProfile'
+    ])->name('subscriber.profile.update');
 
     Route::post('/subscriber/payment/submit', [
         PaymentSubmissionController::class,

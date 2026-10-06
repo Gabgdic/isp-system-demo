@@ -12,32 +12,71 @@ class AdminController extends Controller
 {
     public function index()
     {
-        $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
+        $admins = User::whereIn('role', [
+            'admin',
+            'super_admin'
+        ])->get();
+
         return view('admin.admin', compact('admins'));
     }
 
     public function update(Request $request)
     {
         $user = Auth::user();
+
         $request->validate([
             'username' => 'required|string|max:255|unique:users,username,' . $user->id,
-            'password' => 'nullable|min:6|confirmed',
-            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'password' => [
+                'nullable',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/',
+            ],
+            'profile_photo' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:4096',
+            ],
+        ], [
+            'password.regex' => 'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character.',
         ]);
+
         $user->username = $request->username;
 
         if ($request->filled('password')) {
-            $user->password = Hash::make($request->password);
+            $user->password = Hash::make(
+                $request->password
+            );
         }
 
         if ($request->hasFile('profile_photo')) {
-            if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
-                Storage::disk('public')->delete($user->profile_photo);
+            if (
+                $user->profile_photo &&
+                Storage::disk('public')->exists(
+                    $user->profile_photo
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $user->profile_photo
+                );
             }
-            $user->profile_photo = $request->file('profile_photo')->store('profile_photos', 'public');
+
+            $user->profile_photo = $request
+                ->file('profile_photo')
+                ->store(
+                    'profile_photos',
+                    'public'
+                );
         }
+
         $user->save();
-        return back()->with('success', 'Admin updated successfully.');
+
+        return back()->with(
+            'success',
+            'Admin updated successfully.'
+        );
     }
 
     // CREATE ADMIN
@@ -46,13 +85,29 @@ class AdminController extends Controller
         $request->validate([
             'username' => 'required|string|max:255|unique:users,username',
             'role' => 'required|string|in:admin,super_admin',
-            'password' => 'required|min:6|confirmed',
-            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/',
+            ],
+            'profile_photo' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:4096',
+            ],
+        ], [
+            'password.regex' => 'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character.',
         ]);
+
         $profilePhotoPath = null;
 
         if ($request->hasFile('profile_photo')) {
-            $profilePhotoPath = $request->file('profile_photo')->store('profile_photos', 'public');
+            $profilePhotoPath = $request
+                ->file('profile_photo')
+                ->store('profile_photos', 'public');
         }
 
         User::create([
@@ -61,18 +116,64 @@ class AdminController extends Controller
             'role' => $request->role,
             'profile_photo' => $profilePhotoPath,
         ]);
-        return back()->with('success', 'Admin created successfully!');
+
+        return back()->with(
+            'success',
+            'Admin created successfully!'
+        );
     }
 
+    // UPDATE OTHER ADMIN
     public function updateRole(Request $request, $id)
     {
         $request->validate([
             'role' => 'required|string|in:admin,super_admin',
+            'password' => [
+                'nullable',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/',
+            ],
+        ], [
+            'password.regex' => 'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character.',
         ]);
-        $admin = User::whereIn('role', ['admin', 'super_admin'])->findOrFail($id);
+
+        // Prevent editing your own account
+        if ((int) Auth::id() === (int) $id) {
+            return back()->with(
+                'error',
+                'You cannot edit your own account here.'
+            );
+        }
+
+        $admin = User::whereIn('role', [
+            'admin',
+            'super_admin'
+        ])->find($id);
+
+        if (!$admin) {
+            return back()->with(
+                'error',
+                'Admin not found.'
+            );
+        }
+
         $admin->role = $request->role;
+
+        // Only update password if a new password was entered
+        if ($request->filled('password')) {
+            $admin->password = Hash::make(
+                $request->password
+            );
+        }
+
         $admin->save();
-        return back()->with('success', 'Admin role updated successfully.');
+
+        return back()->with(
+            'success',
+            'Admin account updated successfully.'
+        );
     }
 
     // DELETE ADMIN
@@ -83,25 +184,54 @@ class AdminController extends Controller
         ]);
 
         if (Auth::id() == $id) {
-            return back()->with('error', 'You cannot delete your own account.');
+            return back()->with(
+                'error',
+                'You cannot delete your own account.'
+            );
         }
 
-        if (!Hash::check($request->password, Auth::user()->password)) {
-            return back()->with('error', 'Incorrect password.');
+        if (
+            !Hash::check(
+                $request->password,
+                Auth::user()->password
+            )
+        ) {
+            return back()->with(
+                'error',
+                'Incorrect password.'
+            );
         }
 
         $admin = User::where('id', $id)
-            ->whereIn('role', ['admin', 'super_admin'])
+            ->whereIn('role', [
+                'admin',
+                'super_admin'
+            ])
             ->first();
 
         if (!$admin) {
-            return back()->with('error', 'Admin not found.');
+            return back()->with(
+                'error',
+                'Admin not found.'
+            );
         }
 
-        if ($admin->profile_photo && Storage::disk('public')->exists($admin->profile_photo)) {
-            Storage::disk('public')->delete($admin->profile_photo);
+        if (
+            $admin->profile_photo &&
+            Storage::disk('public')->exists(
+                $admin->profile_photo
+            )
+        ) {
+            Storage::disk('public')->delete(
+                $admin->profile_photo
+            );
         }
+
         $admin->delete();
-        return back()->with('success', 'Admin deleted successfully.');
+
+        return back()->with(
+            'success',
+            'Admin deleted successfully.'
+        );
     }
 }

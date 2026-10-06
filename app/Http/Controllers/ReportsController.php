@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingRecord;
 use App\Models\PaymentSubmission;
+use App\Models\Subscriber;
+use App\Models\SystemSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -126,7 +128,7 @@ class ReportsController extends Controller
             }
         }
 
-        // Updated to load both billingRecord and billingAllocations.billingRecord
+        // Reverted to recent payments query
         $recentPayments = PaymentSubmission::with([
             'subscriber',
             'billingRecord',
@@ -136,6 +138,16 @@ class ReportsController extends Controller
             ->latest('reviewed_at')
             ->take(5)
             ->get();
+
+        // Fetch subscribers with billing records and system settings for modal dynamic SOA rendering
+        $subscribers = Subscriber::with([
+            'billingRecords' => function ($q) {
+                $q->orderBy('billing_year', 'desc')
+                  ->orderBy('billing_month', 'desc');
+            }
+        ])->get();
+
+        $settings = SystemSetting::first();
 
         return view('admin.reports', compact(
             'period',
@@ -149,7 +161,31 @@ class ReportsController extends Controller
             'trendLabels',
             'trendRevenue',
             'trendOutstanding',
-            'recentPayments'
+            'recentPayments',
+            'subscribers',
+            'settings'
         ));
+    }
+
+    public function generateSOA($subscriber_id)
+    {
+        $subscriber = Subscriber::with([
+            'billingRecords' => function ($q) {
+                $q->orderBy('billing_year', 'desc')
+                ->orderBy('billing_month', 'desc');
+            },
+            'paymentSubmissions' => function ($q) {
+                $q->where('status', 'approved')
+                ->latest('reviewed_at');
+            }
+        ])->findOrFail($subscriber_id);
+
+        $unpaidBills = $subscriber->billingRecords
+            ->whereIn('status', ['unpaid', 'overdue', 'pending']);
+        
+        $totalOutstanding = $unpaidBills->sum('amount');
+        $systemSettings = SystemSetting::first();
+
+        return view('reports.soa', compact('subscriber', 'unpaidBills', 'totalOutstanding', 'systemSettings'));
     }
 }
