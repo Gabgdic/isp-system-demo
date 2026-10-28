@@ -10,6 +10,5 @@ class SubscriptionPlan extends Model
         'plan_name',
         'price',
         'description',
-        'status',
     ];
 }

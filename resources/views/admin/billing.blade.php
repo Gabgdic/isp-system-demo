@@ -4,7 +4,7 @@
 
 @section('content')
 
-<div class="space-y-4 max-w-7xl mx-auto animate-fadeIn">
+<div id="page-content" class="space-y-4 max-w-7xl mx-auto opacity-0 translate-y-2 transition-all duration-500 ease-out">
 
     <!-- Header & Alerts -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -38,7 +38,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[300px]">
 
         <!-- PAYMENT VERIFICATION -->
-        <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
+        <div class="lg:col-span-7 bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
 
             <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50 flex-shrink-0">
                 <div>
@@ -69,7 +69,7 @@
 
                         <tbody class="divide-y divide-slate-100">
                             @foreach($pendingPayments as $payment)
-                                <tr class="hover:bg-slate-50 transition">
+                                <tr class="hover:bg-slate-100 transition">
                                     <td class="px-4 py-3">
                                         <div class="font-semibold text-slate-900">
                                             {{ $payment->subscriber->full_name ?? 'N/A' }}
@@ -145,7 +145,7 @@
         </div>
 
         <!-- SUBSCRIPTION PLANS -->
-        <div class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
+        <div class="lg:col-span-5 bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50 flex-shrink-0">
                 <div>
                     <h2 class="text-base font-bold text-slate-900">Subscription Plans</h2>
@@ -164,14 +164,13 @@
                         <tr>
                             <th class="px-4 py-2.5 text-left font-semibold">Plan</th>
                             <th class="px-4 py-2.5 text-left font-semibold">Price</th>
-                            <th class="px-4 py-2.5 text-left font-semibold">Status</th>
                             <th class="px-4 py-2.5 text-right font-semibold">Action</th>
                         </tr>
                     </thead>
 
                     <tbody class="divide-y divide-slate-100">
                         @forelse($plans as $plan)
-                            <tr class="hover:bg-slate-50 transition">
+                            <tr class="hover:bg-slate-100 transition">
                                 <td class="px-4 py-3">
                                     <p class="font-semibold text-slate-800 leading-tight">{{ $plan->plan_name }}</p>
                                     <p class="text-xs text-slate-400 truncate max-w-[120px] mt-0.5">{{ $plan->description ?? 'N/A' }}</p>
@@ -179,18 +178,6 @@
 
                                 <td class="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">
                                     ₱{{ number_format($plan->price, 2) }}
-                                </td>
-
-                                <td class="px-4 py-3">
-                                    @if($plan->status === 'active')
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200">
-                                            Active
-                                        </span>
-                                    @else
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                            Inactive
-                                        </span>
-                                    @endif
                                 </td>
 
                                 <td class="px-4 py-3 text-right">
@@ -201,7 +188,6 @@
                                             data-plan-name="{{ $plan->plan_name }}"
                                             data-price="{{ $plan->price }}"
                                             data-description="{{ $plan->description }}"
-                                            data-status="{{ $plan->status }}"
                                             class="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition"
                                             title="Edit">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -225,7 +211,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-4 py-8 text-center text-slate-400 text-sm">
+                                <td colspan="3" class="px-4 py-8 text-center text-slate-400 text-sm">
                                     No plans found.
                                 </td>
                             </tr>
@@ -238,8 +224,29 @@
     </div>
 
     <!-- BILLING RECORDS (Bottom Container using AJAX Pagination) -->
-    <div id="billing-records-container" class="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col h-[360px] overflow-hidden">
-        @include('admin.partials.billing_records_table')
+    <div id="billing-records-container" class="bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-[360px] overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/50 flex-shrink-0">
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Billing Records</h2>
+                <p class="text-xs text-slate-500">Track subscriber invoices, payment status, and statements.</p>
+            </div>
+            <div class="relative w-full sm:w-72">
+                <input
+                    type="text"
+                    id="billingRecordsSearch"
+                    value="{{ $search ?? '' }}"
+                    placeholder="Search subscriber, status, or period..."
+                    class="form-input pr-10"
+                    autocomplete="off"
+                >
+                <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0z"/>
+                </svg>
+            </div>
+        </div>
+        <div id="billing-records-content" class="flex flex-col flex-1 min-h-0">
+            @include('admin.partials.billing_records_table')
+        </div>
     </div>
 
 </div>
@@ -418,13 +425,6 @@
                 <label class="form-label">Description</label>
                 <textarea name="description" rows="2" class="form-input resize-none" placeholder="Optional description"></textarea>
             </div>
-            <div>
-                <label class="form-label">Status <span class="text-red-500">*</span></label>
-                <select name="status" class="form-input" required>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
-            </div>
             <button class="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition">Save Plan</button>
         </form>
     </div>
@@ -452,23 +452,12 @@
                 <label class="form-label">Description</label>
                 <textarea id="edit_description" name="description" rows="2" class="form-input resize-none"></textarea>
             </div>
-            <div>
-                <label class="form-label">Status <span class="text-red-500">*</span></label>
-                <select id="edit_status" name="status" class="form-input" required>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
-            </div>
             <button class="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition">Save Changes</button>
         </form>
     </div>
 </div>
 
 <style>
-.animate-fadeIn {
-    animation: fadeIn 0.45s ease-in-out;
-}
-
 .form-label {
     display: block;
     margin-bottom: 3px;
@@ -539,6 +528,17 @@
 </style>
 
 <script>
+// Trigger page load fade-in animation
+document.addEventListener('DOMContentLoaded', function() {
+    const pageContent = document.getElementById('page-content');
+    if (pageContent) {
+        requestAnimationFrame(() => {
+            pageContent.classList.remove('opacity-0', 'translate-y-2');
+            pageContent.classList.add('opacity-100', 'translate-y-0');
+        });
+    }
+});
+
 document.addEventListener('click', function(e) {
     const link = e.target.closest('#billing-records-container a');
     if (link && link.href) {
@@ -547,7 +547,38 @@ document.addEventListener('click', function(e) {
     }
 });
 
+let billingSearchTimeout;
+document.addEventListener('input', function(e) {
+    const searchInput = e.target.closest('#billingRecordsSearch');
+    if (!searchInput) return;
+
+    clearTimeout(billingSearchTimeout);
+    billingSearchTimeout = setTimeout(() => {
+        const url = new URL(@json(route('billing')), window.location.origin);
+        const search = searchInput.value.trim();
+
+        if (search) {
+            url.searchParams.set('search', search);
+        } else {
+            url.searchParams.delete('search');
+        }
+
+        fetchBillingRecords(url.toString());
+    }, 300);
+});
+
 function fetchBillingRecords(url) {
+    const container = document.getElementById('billing-records-content');
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 text-xs py-12 gap-2">
+            <svg class="animate-spin h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading records...</span>
+        </div>
+    `;
+
     fetch(url, {
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
@@ -555,9 +586,12 @@ function fetchBillingRecords(url) {
     })
     .then(response => response.text())
     .then(html => {
-        document.getElementById('billing-records-container').innerHTML = html;
+        container.innerHTML = html;
     })
-    .catch(error => console.error('Error updating billing records:', error));
+    .catch(error => {
+        console.error('Error updating billing records:', error);
+        container.innerHTML = `<p class="text-xs text-red-500 text-center py-6">Failed to load billing records.</p>`;
+    });
 }
 
 function openPaymentModal(id) {
@@ -606,7 +640,6 @@ function openEditPlanModal(button) {
     document.getElementById('edit_plan_name').value = button.dataset.planName || '';
     document.getElementById('edit_price').value = button.dataset.price || '';
     document.getElementById('edit_description').value = button.dataset.description || '';
-    document.getElementById('edit_status').value = button.dataset.status || 'active';
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -623,8 +656,12 @@ function openSoaModal(subscriberId) {
     const content = document.getElementById('soa-modal-content');
 
     content.innerHTML = `
-        <div class="flex items-center justify-center py-12 text-slate-400 text-xs">
-            Loading Statement of Account...
+        <div class="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
+            <svg class="animate-spin h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading Statement of Account...</span>
         </div>
     `;
 
@@ -656,8 +693,12 @@ function openReceiptModal(subscriberId, recordId) {
     const content = document.getElementById('receipt-modal-content');
 
     content.innerHTML = `
-        <div class="flex items-center justify-center py-12 text-slate-400 text-xs">
-            Loading Receipt...
+        <div class="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
+            <svg class="animate-spin h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading Receipt...</span>
         </div>
     `;
 

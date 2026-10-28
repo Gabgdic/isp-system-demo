@@ -11,15 +11,22 @@ class GenerateMonthlyBills extends Command
 {
     protected $signature = 'billing:generate-monthly';
 
-    protected $description = 'Generate monthly billing records for all active subscribers';
+    protected $description = 'Generate monthly billing records for active and inactive subscribers';
 
     public function handle()
     {
         $now = Carbon::now();
-        $subscribers = Subscriber::where('status', 'active')->get();
+        
+        $subscribers = Subscriber::all();
         $count = 0;
 
         foreach ($subscribers as $subscriber) {
+            $subscriber->syncOverdueStatus();
+
+            if (!in_array($subscriber->status, ['active', 'inactive'], true)) {
+                continue;
+            }
+
             $record = BillingRecord::firstOrCreate(
                 [
                     'subscriber_id' => $subscriber->id,
@@ -40,5 +47,6 @@ class GenerateMonthlyBills extends Command
         }
 
         $this->info("Generated {$count} new billing records.");
+        return Command::SUCCESS;
     }
 }

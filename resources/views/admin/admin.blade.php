@@ -48,7 +48,7 @@
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         <!-- Update Form -->
-        <div class="xl:col-span-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 admin-card">
+        <div class="xl:col-span-1 bg-slate-50 rounded-2xl border border-slate-300 shadow-sm p-4 admin-card">
             <div class="mb-4">
                 <h2 class="text-base font-bold text-slate-900">Update Admin Info</h2>
                 <p class="text-xs text-slate-500 mt-0.5">
@@ -139,7 +139,7 @@
         </div>
 
         <!-- Admin List -->
-        <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card">
+        <div class="xl:col-span-2 bg-slate-50 rounded-2xl border border-slate-300 shadow-sm overflow-hidden admin-card">
             <div class="px-4 py-3 border-b border-slate-200">
                 <h2 class="text-base font-bold text-slate-900">All Admin Accounts</h2>
                 <p class="text-xs text-slate-500 mt-0.5">
@@ -160,7 +160,7 @@
 
                     <tbody class="divide-y divide-slate-100 text-slate-700">
                         @foreach($admins as $admin)
-                            <tr class="hover:bg-slate-50 transition">
+                            <tr class="hover:bg-slate-100 transition">
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-2.5">
                                         @if($admin->profile_photo)

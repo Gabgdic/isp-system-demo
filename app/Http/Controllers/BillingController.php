@@ -15,15 +15,33 @@ class BillingController extends Controller
     public function index(Request $request)
     {
         // Billing Records
-        $billingRecords = BillingRecord::with('subscriber')
+        $search = trim($request->input('search', ''));
+
+        $billingRecordsQuery = BillingRecord::with('subscriber');
+
+        if ($search !== '') {
+            $billingRecordsQuery->where(function ($query) use ($search) {
+                $query->whereHas('subscriber', function ($subscriberQuery) use ($search) {
+                    $subscriberQuery->where('full_name', 'like', "%{$search}%")
+                        ->orWhere('username', 'like', "%{$search}%");
+                })
+                    ->orWhere('status', 'like', "%{$search}%")
+                    ->orWhere('billing_year', 'like', "%{$search}%")
+                    ->orWhere('billing_month', 'like', "%{$search}%")
+                    ->orWhere('amount', 'like', "%{$search}%");
+            });
+        }
+
+        $billingRecords = $billingRecordsQuery
             ->orderByDesc('billing_year')
             ->orderByDesc('billing_month')
             ->latest()
-            ->paginate(10);
+            ->paginate(10)
+            ->withQueryString();
 
         // Return partial view for AJAX pagination requests
         if ($request->ajax()) {
-            return view('admin.partials.billing_records_table', compact('billingRecords'))->render();
+            return view('admin.partials.billing_records_table', compact('billingRecords', 'search'))->render();
         }
 
         // Pending Payment Submissions
@@ -42,7 +60,8 @@ class BillingController extends Controller
         return view('admin.billing', compact(
             'pendingPayments',
             'billingRecords',
-            'plans'
+            'plans',
+            'search'
         ));
     }
 
@@ -138,6 +157,11 @@ class BillingController extends Controller
                 'status' => 'approved',
                 'reviewed_at' => now(),
             ]);
+
+            // Re-evaluate subscriber status immediately
+            if ($payment->subscriber) {
+                $payment->subscriber->syncOverdueStatus();
+            }
         });
 
         return back()->with('success', 'Payment approved successfully.');
@@ -192,6 +216,11 @@ class BillingController extends Controller
                 'admin_note' => $request->admin_note,
                 'reviewed_at' => now(),
             ]);
+
+            // Re-evaluate subscriber status immediately
+            if ($payment->subscriber) {
+                $payment->subscriber->syncOverdueStatus();
+            }
         });
 
         return back()->with('success', 'Payment rejected.');
@@ -204,14 +233,12 @@ class BillingController extends Controller
             'plan_name' => 'required|string|max:255|unique:subscription_plans,plan_name',
             'price' => 'required|numeric|min:0',
             'description' => 'nullable|string|max:1000',
-            'status' => 'required|in:active,inactive',
         ]);
 
         SubscriptionPlan::create([
             'plan_name' => $request->plan_name,
             'price' => $request->price,
             'description' => $request->description,
-            'status' => $request->status,
         ]);
 
         return back()->with('success', 'Subscription plan created successfully.');
@@ -225,14 +252,12 @@ class BillingController extends Controller
             'plan_name' => 'required|string|max:255|unique:subscription_plans,plan_name,' . $plan->id,
             'price' => 'required|numeric|min:0',
             'description' => 'nullable|string|max:1000',
-            'status' => 'required|in:active,inactive',
         ]);
 
         $plan->update([
             'plan_name' => $request->plan_name,
             'price' => $request->price,
             'description' => $request->description,
-            'status' => $request->status,
         ]);
 
         return back()->with('success', 'Subscription plan updated successfully.');

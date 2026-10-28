@@ -9,6 +9,13 @@
 
     <title>{{ $systemSettings->system_name ?? 'Client Area' }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        try {
+            if (localStorage.getItem('admin-theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (error) {}
+    </script>
 
     @if($systemSettings && $systemSettings->system_logo)
         <link rel="icon" type="image/png" href="{{ asset('storage/' . $systemSettings->system_logo) }}">
@@ -63,6 +70,23 @@
 
             <!-- Right -->
             <div class="flex items-center gap-3">
+                <button
+                    id="adminThemeToggle"
+                    type="button"
+                    aria-label="Enable dark mode"
+                    aria-pressed="false"
+                    title="Enable dark mode"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+                >
+                    <svg data-theme-icon="moon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 15.5A8.5 8.5 0 018.5 3.5a8.5 8.5 0 1012 12z"/>
+                    </svg>
+                    <svg data-theme-icon="sun" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4" stroke-width="2"/>
+                        <path stroke-linecap="round" stroke-width="2" d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>
+                    </svg>
+                </button>
+
                 <div class="hidden sm:block text-right">
                     <p class="text-sm font-semibold text-slate-800">
                         {{ Auth::user()->username ?? 'Guest' }}

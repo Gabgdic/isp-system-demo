@@ -33,6 +33,12 @@ class AuthController extends Controller
         $subscriber = Subscriber::where('username', $request->username)->first();
 
         if ($subscriber && Hash::check($request->password, $subscriber->password)) {
+            $subscriber->syncOverdueStatus();
+
+            if ($subscriber->status === 'disconnected') {
+                return back()->with('error', 'Your account is disconnected. Please visit the administrator after paying your overdue balance.');
+            }
+
             $request->session()->regenerate();
             
             session([

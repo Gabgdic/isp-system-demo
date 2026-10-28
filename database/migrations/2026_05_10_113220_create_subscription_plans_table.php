@@ -13,7 +13,6 @@ return new class extends Migration
             $table->string('plan_name');
             $table->decimal('price', 10, 2);
             $table->string('description')->nullable();
-            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
             $table->softDeletes();
         });

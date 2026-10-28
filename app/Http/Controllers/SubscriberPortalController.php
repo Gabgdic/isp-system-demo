@@ -5,131 +5,80 @@ namespace App\Http\Controllers;
 use App\Models\BillingRecord;
 use App\Models\Subscriber;
 use App\Models\SystemSetting;
-use Carbon\Carbon;
+use App\Models\PaymentSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 class SubscriberPortalController extends Controller
 {
     public function index()
     {
-        $subscriber = Subscriber::find(
-            session('subscriber_id')
-        );
+        $subscriber = Subscriber::find(session('subscriber_id'));
 
         if (!$subscriber) {
-            return redirect()
-                ->route('login')
-                ->with(
-                    'error',
-                    'Please sign in to access your portal.'
-                );
+            return redirect()->route('login')->with('error', 'Please sign in to access your portal.');
         }
 
-        // Generate all missing monthly billing records.
-        $accountStart = Carbon::parse(
-            $subscriber->created_at
-        )->startOfMonth();
+        // Automatically update overdue bills and evaluate subscriber status
+        $subscriber->updateStatusBasedOnBills();
 
-        $currentMonth = now()->startOfMonth();
-        $month = $accountStart->copy();
-
-        while ($month->lte($currentMonth)) {
-            BillingRecord::firstOrCreate(
-                [
-                    'subscriber_id' => $subscriber->id,
-                    'billing_month' => $month->month,
-                    'billing_year' => $month->year,
-                ],
-                [
-                    'amount' => $subscriber->monthly_fee,
-                    'due_date' => $month->copy()->endOfMonth(),
-                    'status' => 'unpaid',
-                    'paid_at' => null,
-                ]
-            );
-
-            $month->addMonth();
-        }
-
-        // Update old unpaid bills to overdue.
-        BillingRecord::where(
-                'subscriber_id',
-                $subscriber->id
-            )
-            ->where('status', 'unpaid')
-            ->whereDate(
-                'due_date',
-                '<',
-                now()->toDateString()
-            )
-            ->update([
-                'status' => 'overdue',
-            ]);
-
-        // Get all billing records.
-        $billingRecords = BillingRecord::where(
-                'subscriber_id',
-                $subscriber->id
-            )
+        // Fetch billing records with payment allocations and submissions for receipt/rejection details
+        $billingRecords = BillingRecord::with(['paymentAllocations.paymentSubmission'])
+            ->where('subscriber_id', $subscriber->id)
             ->orderByDesc('billing_year')
             ->orderByDesc('billing_month')
             ->get();
 
-        // Bills that can currently be paid.
-        $payableBills = $billingRecords->filter(
-            function ($bill) {
-                return in_array(
-                    $bill->status,
-                    [
-                        'unpaid',
-                        'overdue',
-                    ]
-                );
-            }
-        );
+        // Fetch recently accepted payments (approved in the last 7 days)
+        $recentlyAcceptedPayments = PaymentSubmission::where('subscriber_id', $subscriber->id)
+            ->where('status', 'approved')
+            ->where(function ($query) {
+                $query->where('reviewed_at', '>=', now()->subDays(7))
+                      ->orWhereNull('reviewed_at');
+            })
+            ->latest('updated_at')
+            ->get();
 
-        // Bills with a payment under review.
-        $pendingBills = $billingRecords->filter(
-            function ($bill) {
-                return $bill->status === 'pending';
-            }
-        );
+        // Fetch rejected payments, but hide them if a newer payment was approved
+        $latestApprovedDate = PaymentSubmission::where('subscriber_id', $subscriber->id)
+            ->where('status', 'approved')
+            ->max('updated_at');
 
-        // Full payable outstanding balance.
-        $outstandingBalance = $payableBills->sum(
-            function ($bill) {
-                return (float) $bill->amount;
-            }
-        );
+        $rejectedPaymentsQuery = PaymentSubmission::where('subscriber_id', $subscriber->id)
+            ->where('status', 'rejected');
 
-        // Current month bill.
-        $currentBill = $billingRecords->first(
-            function ($bill) use ($currentMonth) {
-                return
-                    (int) $bill->billing_year ===
-                        (int) $currentMonth->year
-                    &&
-                    (int) $bill->billing_month ===
-                        (int) $currentMonth->month;
-            }
-        );
+        if ($latestApprovedDate) {
+            $rejectedPaymentsQuery->where('updated_at', '>', $latestApprovedDate);
+        }
 
-        // GCash settings.
+        $rejectedPayments = $rejectedPaymentsQuery->latest('reviewed_at')->get();
+
+        $payableBills = $billingRecords->filter(fn($bill) => in_array($bill->status, ['unpaid', 'overdue']));
+        $pendingBills = $billingRecords->filter(fn($bill) => $bill->status === 'pending');
+        $outstandingBalance = $payableBills->sum(fn($bill) => (float) $bill->amount);
+        $soaAvailable = $payableBills->contains(fn ($bill) =>
+            $bill->due_date && $bill->due_date->lte(today()->addDays(5))
+        );
+        
+        $currentBill = $billingRecords->first(function ($bill) {
+            return (int) $bill->billing_year === (int) now()->year && (int) $bill->billing_month === (int) now()->month;
+        });
+
         $settings = SystemSetting::first();
 
-        return view(
-            'subscriber.portal',
-            compact(
-                'subscriber',
-                'settings',
-                'billingRecords',
-                'payableBills',
-                'pendingBills',
-                'outstandingBalance',
-                'currentBill'
-            )
-        );
+        return view('subscriber.portal', compact(
+            'subscriber',
+            'settings',
+            'billingRecords',
+            'rejectedPayments',
+            'recentlyAcceptedPayments',
+            'payableBills',
+            'pendingBills',
+            'outstandingBalance',
+            'currentBill',
+            'soaAvailable'
+        ));
     }
 
     /**
@@ -140,17 +89,29 @@ class SubscriberPortalController extends Controller
         $subscriber = Subscriber::findOrFail(session('subscriber_id'));
 
         $request->validate([
-            'full_name' => 'required|string|max:255',
-            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096', // 4MB Limit
+            'full_name'        => 'required|string|max:255',
+            'profile_photo'    => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+            'current_password' => 'nullable|required_with:new_password',
+            'new_password'     => 'nullable|min:6|confirmed',
         ], [
-            'profile_photo.max' => 'The profile picture must not exceed 4MB in size.',
-            'profile_photo.image' => 'The profile picture must be a valid image file.',
+            'profile_photo.max'          => 'The profile picture must not exceed 4MB in size.',
+            'profile_photo.image'        => 'The profile picture must be a valid image file.',
+            'current_password.required_with' => 'Please enter your current password to set a new password.',
+            'new_password.confirmed'     => 'New password confirmation does not match.',
+            'new_password.min'           => 'New password must be at least 6 characters.',
         ]);
+
+        // Check current password if updating password
+        if ($request->filled('new_password')) {
+            if (!Hash::check($request->current_password, $subscriber->password)) {
+                return redirect()->back()->withErrors(['current_password' => 'Current password does not match our records.']);
+            }
+            $subscriber->password = Hash::make($request->new_password);
+        }
 
         $subscriber->full_name = $request->full_name;
 
         if ($request->hasFile('profile_photo')) {
-            // Delete old photo if exists
             if ($subscriber->profile_photo && Storage::disk('public')->exists($subscriber->profile_photo)) {
                 Storage::disk('public')->delete($subscriber->profile_photo);
             }
@@ -184,6 +145,15 @@ class SubscriberPortalController extends Controller
 
         $unpaidBills = $subscriber->billingRecords
             ->whereIn('status', ['unpaid', 'overdue', 'pending']);
+
+        $soaAvailable = $unpaidBills
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->contains(fn ($bill) => $bill->due_date && $bill->due_date->lte(today()->addDays(5)));
+
+        if (!$soaAvailable) {
+            return redirect()->route('subscriber.portal')
+                ->with('error', 'Your statement will be available when an unpaid bill is due within five days.');
+        }
         
         $totalOutstanding = $unpaidBills->sum('amount');
         $systemSettings = SystemSetting::first();

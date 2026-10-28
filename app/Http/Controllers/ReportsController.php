@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingRecord;
 use App\Models\PaymentSubmission;
-use App\Models\Subscriber;
-use App\Models\SystemSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -13,144 +11,114 @@ class ReportsController extends Controller
 {
     public function index(Request $request)
     {
-        $period = $request->get('period', 'monthly');
+        $currentMonth = now()->startOfMonth();
+        $period = $request->input('period', 'overall');
+        $selectedMonth = null;
 
-        if (!in_array($period, ['monthly', 'yearly'])) {
-            $period = 'monthly';
+        if ($period !== 'overall') {
+            if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
+                $period = 'overall';
+            } else {
+                $selectedMonth = Carbon::createFromFormat('!Y-m', $period);
+
+                if ($selectedMonth->greaterThan($currentMonth)) {
+                    $period = 'overall';
+                    $selectedMonth = null;
+                }
+            }
         }
 
-        $totalRevenue = PaymentSubmission::where(
-            'status',
-            'approved'
-        )->sum('amount_paid');
+        $startMonth = $currentMonth->copy();
+        $firstBillingRecord = BillingRecord::orderBy('billing_year')
+            ->orderBy('billing_month')
+            ->first(['billing_year', 'billing_month']);
 
-        $approvedPayments = PaymentSubmission::where(
-            'status',
-            'approved'
-        )->count();
+        if ($firstBillingRecord) {
+            $billingStart = Carbon::create(
+                $firstBillingRecord->billing_year,
+                $firstBillingRecord->billing_month,
+                1
+            )->startOfMonth();
 
-        $pendingPayments = PaymentSubmission::where(
-            'status',
-            'pending'
-        )->count();
+            if ($billingStart->lessThan($startMonth)) {
+                $startMonth = $billingStart;
+            }
+        }
 
-        $outstandingBalance = BillingRecord::whereIn('status', [
-            'unpaid',
-            'overdue',
-            'pending',
-        ])->sum('amount');
+        $firstSubmissionDate = PaymentSubmission::min('created_at');
+        if ($firstSubmissionDate) {
+            $submissionStart = Carbon::parse($firstSubmissionDate)->startOfMonth();
 
-        $paidBills = BillingRecord::where(
-            'status',
-            'paid'
-        )->count();
+            if ($submissionStart->lessThan($startMonth)) {
+                $startMonth = $submissionStart;
+            }
+        }
 
-        $pendingBills = BillingRecord::where(
-            'status',
-            'pending'
-        )->count();
+        $monthOptions = [];
+        $monthCursor = $startMonth->copy();
+        while ($monthCursor->lessThanOrEqualTo($currentMonth)) {
+            $monthOptions[$monthCursor->format('Y-m')] = $monthCursor->format('M Y');
+            $monthCursor->addMonth();
+        }
 
-        $unpaidBills = BillingRecord::whereIn('status', [
-            'unpaid',
-            'overdue',
-        ])->count();
+        $approvedPaymentsQuery = PaymentSubmission::where('status', 'approved');
+        $pendingPaymentsQuery = PaymentSubmission::where('status', 'pending');
+        $billingMonthQuery = BillingRecord::query();
+
+        if ($selectedMonth) {
+            $approvedPaymentsQuery
+                ->whereYear('reviewed_at', $selectedMonth->year)
+                ->whereMonth('reviewed_at', $selectedMonth->month);
+            $pendingPaymentsQuery
+                ->whereYear('created_at', $selectedMonth->year)
+                ->whereMonth('created_at', $selectedMonth->month);
+            $billingMonthQuery
+                ->where('billing_year', $selectedMonth->year)
+                ->where('billing_month', $selectedMonth->month);
+        }
+
+        $totalRevenue = (clone $approvedPaymentsQuery)->sum('amount_paid');
+        $approvedPayments = (clone $approvedPaymentsQuery)->count();
+        $pendingPayments = $pendingPaymentsQuery->count();
+
+        $outstandingBalance = (clone $billingMonthQuery)
+            ->whereIn('status', ['unpaid', 'overdue', 'pending'])
+            ->sum('amount');
+        $paidBills = (clone $billingMonthQuery)
+            ->where('status', 'paid')
+            ->count();
+        $pendingBills = (clone $billingMonthQuery)
+            ->where('status', 'pending')
+            ->count();
+        $unpaidBills = (clone $billingMonthQuery)
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->count();
+
+        $chartMonths = $selectedMonth
+            ? collect([$selectedMonth->copy()])
+            : collect(array_keys($monthOptions))->map(
+                fn ($month) => Carbon::createFromFormat('!Y-m', $month)
+            );
 
         $trendLabels = [];
         $trendRevenue = [];
         $trendOutstanding = [];
 
-        if ($period === 'monthly') {
-            for ($i = 11; $i >= 0; $i--) {
-                $date = Carbon::now()
-                    ->startOfMonth()
-                    ->subMonths($i);
-
-                $trendLabels[] = $date->format('M Y');
-
-                $revenue = PaymentSubmission::where(
-                        'status',
-                        'approved'
-                    )
-                    ->whereYear(
-                        'reviewed_at',
-                        $date->year
-                    )
-                    ->whereMonth(
-                        'reviewed_at',
-                        $date->month
-                    )
-                    ->sum('amount_paid');
-
-                $outstanding = BillingRecord::where(
-                        'billing_year',
-                        $date->year
-                    )
-                    ->where(
-                        'billing_month',
-                        $date->month
-                    )
-                    ->whereIn('status', [
-                        'unpaid',
-                        'overdue',
-                        'pending',
-                    ])
-                    ->sum('amount');
-
-                $trendRevenue[] = (float) $revenue;
-                $trendOutstanding[] = (float) $outstanding;
-            }
-        } else {
-            for ($i = 4; $i >= 0; $i--) {
-                $year = now()->year - $i;
-
-                $trendLabels[] = (string) $year;
-
-                $revenue = PaymentSubmission::where(
-                        'status',
-                        'approved'
-                    )
-                    ->whereYear('reviewed_at', $year)
-                    ->sum('amount_paid');
-
-                $outstanding = BillingRecord::where(
-                        'billing_year',
-                        $year
-                    )
-                    ->whereIn('status', [
-                        'unpaid',
-                        'overdue',
-                        'pending',
-                    ])
-                    ->sum('amount');
-
-                $trendRevenue[] = (float) $revenue;
-                $trendOutstanding[] = (float) $outstanding;
-            }
+        foreach ($chartMonths as $month) {
+            $trendLabels[] = $month->format('M Y');
+            $trendRevenue[] = (float) PaymentSubmission::where('status', 'approved')
+                ->whereYear('reviewed_at', $month->year)
+                ->whereMonth('reviewed_at', $month->month)
+                ->sum('amount_paid');
+            $trendOutstanding[] = (float) BillingRecord::where('billing_year', $month->year)
+                ->where('billing_month', $month->month)
+                ->whereIn('status', ['unpaid', 'overdue', 'pending'])
+                ->sum('amount');
         }
-
-        // Reverted to recent payments query
-        $recentPayments = PaymentSubmission::with([
-            'subscriber',
-            'billingRecord',
-            'billingAllocations.billingRecord',
-        ])
-            ->where('status', 'approved')
-            ->latest('reviewed_at')
-            ->take(5)
-            ->get();
-
-        // Fetch subscribers with billing records and system settings for modal dynamic SOA rendering
-        $subscribers = Subscriber::with([
-            'billingRecords' => function ($q) {
-                $q->orderBy('billing_year', 'desc')
-                  ->orderBy('billing_month', 'desc');
-            }
-        ])->get();
-
-        $settings = SystemSetting::first();
 
         return view('admin.reports', compact(
             'period',
+            'monthOptions',
             'totalRevenue',
             'approvedPayments',
             'pendingPayments',
@@ -160,32 +128,7 @@ class ReportsController extends Controller
             'unpaidBills',
             'trendLabels',
             'trendRevenue',
-            'trendOutstanding',
-            'recentPayments',
-            'subscribers',
-            'settings'
+            'trendOutstanding'
         ));
-    }
-
-    public function generateSOA($subscriber_id)
-    {
-        $subscriber = Subscriber::with([
-            'billingRecords' => function ($q) {
-                $q->orderBy('billing_year', 'desc')
-                ->orderBy('billing_month', 'desc');
-            },
-            'paymentSubmissions' => function ($q) {
-                $q->where('status', 'approved')
-                ->latest('reviewed_at');
-            }
-        ])->findOrFail($subscriber_id);
-
-        $unpaidBills = $subscriber->billingRecords
-            ->whereIn('status', ['unpaid', 'overdue', 'pending']);
-        
-        $totalOutstanding = $unpaidBills->sum('amount');
-        $systemSettings = SystemSetting::first();
-
-        return view('reports.soa', compact('subscriber', 'unpaidBills', 'totalOutstanding', 'systemSettings'));
     }
 }

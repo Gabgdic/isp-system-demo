@@ -11,5 +11,10 @@ class SystemSetting extends Model
         'system_logo',
         'gcash_name',
         'gcash_number',
+        'soa_location',
+        'authorized_signatory',
+        'signatory_title',
+        'authorized_signature',
+        'soa_body_statement',
     ];
 }

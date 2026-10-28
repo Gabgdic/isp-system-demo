@@ -57,3 +57,11 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Monthly billing scheduler
+
+The `billing:generate-monthly` Artisan command is scheduled for midnight on the first of each month. It is safe to run manually; existing bills for the month are not duplicated.
+
+- **Local development:** run `composer dev`. This starts Laravel's `schedule:work` alongside the web server and other development processes. To generate bills immediately, run `php artisan billing:generate-monthly`.
+- **Production:** keep Laravel's scheduler running by invoking `php artisan schedule:run` every minute. On Windows, configure Task Scheduler to run that command every minute with the project directory as its working directory. On Linux, configure cron to invoke the same command once per minute.
+- **Check registration:** run `php artisan schedule:list` and confirm `billing:generate-monthly` appears.
