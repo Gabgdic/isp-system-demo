@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Subscriber;
 use App\Models\SubscriptionPlan;
 use App\Models\SystemSetting;
@@ -13,8 +12,6 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $totalAdmins = User::where('role', 'admin')->count();
-
         $totalSubscribers = Subscriber::count();
         $activeSubscribers = Subscriber::where('status', 'active')->count();
         $inactiveSubscribers = Subscriber::where('status', 'inactive')->count();
@@ -42,7 +39,6 @@ class DashboardController extends Controller
         $systemSetting = SystemSetting::first();
 
         return view('admin.dashboard', compact(
-            'totalAdmins',
             'totalSubscribers',
             'activeSubscribers',
             'inactiveSubscribers',

@@ -9,6 +9,7 @@ use App\Models\PaymentSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class SubscriberPortalController extends Controller
 {
@@ -66,6 +67,7 @@ class SubscriberPortalController extends Controller
         });
 
         $settings = SystemSetting::first();
+        $monthsInService = max(0, (int) $subscriber->created_at->diffInMonths(now()));
 
         return view('subscriber.portal', compact(
             'subscriber',
@@ -77,7 +79,8 @@ class SubscriberPortalController extends Controller
             'pendingBills',
             'outstandingBalance',
             'currentBill',
-            'soaAvailable'
+            'soaAvailable',
+            'monthsInService'
         ));
     }
 
@@ -89,7 +92,12 @@ class SubscriberPortalController extends Controller
         $subscriber = Subscriber::findOrFail(session('subscriber_id'));
 
         $request->validate([
-            'full_name'        => 'required|string|max:255',
+            'first_name'       => 'required|string|max:80',
+            'middle_name'      => 'nullable|string|max:80',
+            'surname'          => 'required|string|max:80',
+            'suffix'           => ['required', Rule::in(['N/A', 'Jr.', 'Sr.', 'II', 'III', 'IV'])],
+            'facebook_name'    => 'nullable|string|max:255',
+            'phone_number'     => 'required|string|max:20',
             'profile_photo'    => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
             'current_password' => 'nullable|required_with:new_password',
             'new_password'     => 'nullable|min:6|confirmed',
@@ -109,7 +117,18 @@ class SubscriberPortalController extends Controller
             $subscriber->password = Hash::make($request->new_password);
         }
 
-        $subscriber->full_name = $request->full_name;
+        $subscriber->first_name = trim($request->first_name);
+        $subscriber->middle_name = $request->filled('middle_name') ? trim($request->middle_name) : null;
+        $subscriber->surname = trim($request->surname);
+        $subscriber->suffix = $request->suffix;
+        $subscriber->full_name = collect([
+            $subscriber->first_name,
+            $subscriber->middle_name,
+            $subscriber->surname,
+            $subscriber->suffix !== 'N/A' ? $subscriber->suffix : null,
+        ])->filter()->implode(' ');
+        $subscriber->facebook_name = $request->facebook_name;
+        $subscriber->phone_number = $request->phone_number;
 
         if ($request->hasFile('profile_photo')) {
             if ($subscriber->profile_photo && Storage::disk('public')->exists($subscriber->profile_photo)) {

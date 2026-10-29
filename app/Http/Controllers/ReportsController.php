@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\BillingRecord;
 use App\Models\PaymentSubmission;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 
 class ReportsController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => 'nullable|string|max:255',
+        ]);
+
         $currentMonth = now()->startOfMonth();
         $period = $request->input('period', 'overall');
         $selectedMonth = null;
@@ -64,7 +69,6 @@ class ReportsController extends Controller
         $approvedPaymentsQuery = PaymentSubmission::where('status', 'approved');
         $pendingPaymentsQuery = PaymentSubmission::where('status', 'pending');
         $billingMonthQuery = BillingRecord::query();
-
         if ($selectedMonth) {
             $approvedPaymentsQuery
                 ->whereYear('reviewed_at', $selectedMonth->year)
@@ -77,6 +81,126 @@ class ReportsController extends Controller
                 ->where('billing_month', $selectedMonth->month);
         }
 
+        $search = trim($request->input('search', ''));
+        $paidPaymentRows = PaymentSubmission::with([
+            'subscriber',
+            'billingRecord',
+            'billingAllocations.billingRecord',
+        ])
+            ->where('status', 'approved')
+            ->get()
+            ->map(function (PaymentSubmission $payment) use ($selectedMonth, $search) {
+                $bills = $payment->billingAllocations
+                    ->filter(fn ($allocation) => $allocation->billingRecord?->status === 'paid')
+                    ->map(fn ($allocation) => (object) [
+                        'bill' => $allocation->billingRecord,
+                        'amount' => (float) $allocation->amount_applied,
+                    ])
+                    ->values();
+
+                if ($bills->isEmpty() && $payment->billingRecord?->status === 'paid') {
+                    $bills->push((object) [
+                        'bill' => $payment->billingRecord,
+                        'amount' => (float) $payment->billingRecord->amount,
+                    ]);
+                }
+
+                if ($bills->isEmpty()) {
+                    return null;
+                }
+
+                if ($selectedMonth && !$bills->contains(fn ($item) =>
+                    (int) $item->bill->billing_year === $selectedMonth->year
+                    && (int) $item->bill->billing_month === $selectedMonth->month
+                )) {
+                    return null;
+                }
+
+                $periods = $bills->map(fn ($item) => Carbon::create(
+                    $item->bill->billing_year,
+                    $item->bill->billing_month,
+                    1
+                )->format('M Y'))->unique()->implode(', ');
+                $subscriber = $payment->subscriber;
+                $searchable = implode(' ', [
+                    $subscriber?->full_name,
+                    $subscriber?->username,
+                    $payment->reference_number,
+                    number_format((float) $payment->amount_paid, 2, '.', ''),
+                    $periods,
+                ]);
+
+                if ($search !== '' && stripos($searchable, $search) === false) {
+                    return null;
+                }
+
+                return (object) [
+                    'payment' => $payment,
+                    'subscriber' => $subscriber,
+                    'bills' => $bills,
+                    'amount' => (float) $payment->amount_paid,
+                    'paid_at' => $payment->reviewed_at
+                        ?? $bills->map(fn ($item) => $item->bill->paid_at)->filter()->max(),
+                    'periods' => $periods,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $paidBillRows = BillingRecord::with('subscriber')
+            ->where('status', 'paid')
+            ->whereDoesntHave('paymentAllocations.paymentSubmission', fn ($query) => $query->where('status', 'approved'))
+            ->whereDoesntHave('paymentSubmissions', fn ($query) => $query->where('status', 'approved'))
+            ->get()
+            ->filter(function (BillingRecord $bill) use ($selectedMonth, $search) {
+                if ($selectedMonth
+                    && ((int) $bill->billing_year !== $selectedMonth->year
+                        || (int) $bill->billing_month !== $selectedMonth->month)
+                ) {
+                    return false;
+                }
+
+                $period = Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y');
+                $searchable = implode(' ', [
+                    $bill->subscriber?->full_name,
+                    $bill->subscriber?->username,
+                    $bill->amount,
+                    $period,
+                ]);
+
+                return $search === '' || stripos($searchable, $search) !== false;
+            })
+            ->map(function (BillingRecord $bill) {
+                return (object) [
+                    'payment' => null,
+                    'subscriber' => $bill->subscriber,
+                    'bills' => collect([(object) ['bill' => $bill, 'amount' => (float) $bill->amount]]),
+                    'amount' => (float) $bill->amount,
+                    'paid_at' => $bill->paid_at,
+                    'periods' => Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y'),
+                    'legacy_bill' => $bill,
+                ];
+            });
+
+        $paidBillRows = $paidPaymentRows
+            ->concat($paidBillRows)
+            ->sortByDesc(fn ($row) => $row->paid_at?->timestamp ?? 0)
+            ->values();
+
+        $perPage = 10;
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $paidBillRecords = new LengthAwarePaginator(
+            $paidBillRows->forPage($currentPage, $perPage)->values(),
+            $paidBillRows->count(),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        if ($request->ajax()) {
+            return view('admin.partials.paid_bills_table', compact('paidBillRecords'))->render();
+        }
+
         $totalRevenue = (clone $approvedPaymentsQuery)->sum('amount_paid');
         $approvedPayments = (clone $approvedPaymentsQuery)->count();
         $pendingPayments = $pendingPaymentsQuery->count();
@@ -84,7 +208,7 @@ class ReportsController extends Controller
         $outstandingBalance = (clone $billingMonthQuery)
             ->whereIn('status', ['unpaid', 'overdue', 'pending'])
             ->sum('amount');
-        $paidBills = (clone $billingMonthQuery)
+        $paidBillsCount = (clone $billingMonthQuery)
             ->where('status', 'paid')
             ->count();
         $pendingBills = (clone $billingMonthQuery)
@@ -119,11 +243,13 @@ class ReportsController extends Controller
         return view('admin.reports', compact(
             'period',
             'monthOptions',
+            'search',
+            'paidBillRecords',
             'totalRevenue',
             'approvedPayments',
             'pendingPayments',
             'outstandingBalance',
-            'paidBills',
+            'paidBillsCount',
             'pendingBills',
             'unpaidBills',
             'trendLabels',

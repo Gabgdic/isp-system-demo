@@ -9,13 +9,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Subscriber extends Model
 {
     protected $fillable = [
+        'first_name',
+        'middle_name',
+        'surname',
+        'suffix',
+        'barangay',
+        'municipality',
+        'province',
         'full_name',
         'username',
         'password',
-        'email',
+        'facebook_name',
         'phone_number',
         'address',
-        'subscription_plan_id', // Added
+        'subscription_plan_id',
         'plan_name',
         'monthly_fee',
         'status',

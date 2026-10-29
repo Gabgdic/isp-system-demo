@@ -193,7 +193,7 @@
             <!-- 1. RECENTLY ACCEPTED PAYMENT NOTICE BANNER -->
             @if(isset($recentlyAcceptedPayments) && $recentlyAcceptedPayments->isNotEmpty())
                 @foreach($recentlyAcceptedPayments as $accepted)
-                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm text-xs text-emerald-900 flex items-start justify-between gap-3">
+                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm text-xs text-emerald-900 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
                         <div class="space-y-1">
                             <div class="flex items-center gap-1.5 font-bold text-emerald-700">
                                 <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,7 +205,7 @@
                                 Your payment submission of <strong class="text-emerald-800">₱{{ number_format($accepted->amount_paid ?? $accepted->amount, 2) }}</strong> (Ref: <span class="font-mono font-bold">{{ $accepted->reference_number ?? 'N/A' }}</span>) has been verified and processed successfully.
                             </p>
                         </div>
-                        <span class="text-[10px] text-emerald-600 whitespace-nowrap font-medium">
+                        <span class="text-[10px] text-emerald-600 font-medium sm:whitespace-nowrap sm:shrink-0">
                             {{ $accepted->reviewed_at ? \Carbon\Carbon::parse($accepted->reviewed_at)->format('M d, Y') : ($accepted->updated_at ? \Carbon\Carbon::parse($accepted->updated_at)->format('M d, Y') : '') }}
                         </span>
                     </div>
@@ -216,7 +216,7 @@
             @if(isset($rejectedPayments) && $rejectedPayments->isNotEmpty())
                 @foreach($rejectedPayments as $rejected)
                     <div class="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm text-xs text-red-800">
-                        <div class="flex items-center justify-between font-bold mb-1">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 font-bold mb-1">
                             <span class="flex items-center gap-1.5 text-red-700">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -338,7 +338,7 @@
                             Your submitted payment is currently being verified by the admin.
                         </p>
                     @elseif($outstandingBalance > 0)
-                        <div class="flex items-center justify-between">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div class="flex items-center gap-2 text-red-700">
                                 <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
                                 <span class="font-bold text-xs">{{ $payableBills->count() }} Month(s) Outstanding</span>
@@ -363,17 +363,25 @@
                     Subscriber Details
                 </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <span class="text-slate-400 font-medium">Contact Phone:</span>
-                        <span class="font-bold text-slate-700">{{ $subscriber->phone_number ?? 'N/A' }}</span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
+                        <span class="text-slate-400 font-medium block mb-0.5">Contact Phone:</span>
+                        <span class="font-bold text-slate-700 leading-snug block break-all">{{ $subscriber->phone_number ?? 'N/A' }}</span>
                     </div>
 
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
                         <span class="text-slate-400 font-medium block mb-0.5">Service Address:</span>
                         <span class="font-semibold text-slate-700 leading-snug block">
                             {{ $subscriber->address ?? 'No address provided' }}
                         </span>
+                    </div>
+
+                    <div class="portal-loyalty-card bg-indigo-50 p-3 rounded-xl border border-indigo-100 min-w-0">
+                        <span class="portal-loyalty-label text-indigo-500 font-medium block mb-0.5">Months with us:</span>
+                        <span class="portal-loyalty-value font-bold text-indigo-900 leading-snug block">
+                            {{ number_format($monthsInService) }} {{ \Illuminate\Support\Str::plural('month', $monthsInService) }}
+                        </span>
+                        <span class="portal-loyalty-message text-indigo-600 block mt-1">Thank you for being a valued subscriber!</span>
                     </div>
                 </div>
             </div>
@@ -389,8 +397,14 @@
         <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeBillingHistoryModal()"></div>
         <div class="relative min-h-screen flex items-center justify-center p-4">
             <div class="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                    <h2 class="text-base font-extrabold text-slate-900">Billing & Payment History</h2>
+                <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
+                    <div>
+                        <h2 class="text-base font-extrabold text-slate-900">Billing & Payment History</h2>
+                        <p class="mt-1 text-xs text-slate-500">All bills on your account</p>
+                    </div>
+                    <span class="shrink-0 rounded-full bg-indigo-50 border border-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700">
+                        {{ $billingRecords->count() }} {{ \Illuminate\Support\Str::plural('bill', $billingRecords->count()) }}
+                    </span>
                     <button onclick="closeBillingHistoryModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold">✕</button>
                 </div>
 
@@ -410,17 +424,17 @@
                             $screenshot = $submission->payment_screenshot ?? $bill->payment_screenshot ?? null;
                         @endphp
                         <div class="pt-3 first:pt-0">
-                            <div class="flex items-center justify-between">
-                                <div>
+                            <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3 sm:gap-4">
+                                <div class="min-w-0">
                                     <h4 class="text-sm font-extrabold text-slate-800">{{ $billingMonth }}</h4>
                                     <p class="text-[11px] text-slate-400 mt-0.5">
                                         Due: {{ $bill->due_date ? \Carbon\Carbon::parse($bill->due_date)->format('M d, Y') : 'N/A' }}
                                     </p>
                                 </div>
-                                <div class="text-right">
+                                <div class="sm:text-right">
                                     <span class="text-sm font-black text-slate-900 block">₱{{ number_format($bill->amount, 2) }}</span>
                                     
-                                    <div class="mt-1 flex items-center justify-end gap-1.5">
+                                    <div class="mt-1 flex flex-wrap items-center gap-1.5 sm:justify-end">
                                         @if($billStatus === 'paid')
                                             <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Paid</span>
                                             
@@ -720,31 +734,83 @@
     </div>
 
     @endif
-    <!-- MODAL: EDIT PROFILE WITH PHOTO PREVIEW -->
+    <!-- MODAL: EDIT PROFILE -->
     <div id="editProfileModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeEditProfileModal()"></div>
         <div class="relative min-h-screen flex items-center justify-center p-4">
-            <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                    <h2 class="text-base font-extrabold text-slate-900">Edit Profile</h2>
-                    <button onclick="closeEditProfileModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold">✕</button>
+            <div class="relative w-full max-w-xl max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">Edit Profile</h2>
+                        <p class="text-xs text-slate-500 mt-1">Update your contact details and account settings.</p>
+                    </div>
+                    <button type="button" aria-label="Close edit profile" onclick="closeEditProfileModal()" class="w-8 h-8 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 flex items-center justify-center font-bold">✕</button>
                 </div>
 
-                <form method="POST" action="{{ route('subscriber.profile.update') }}" enctype="multipart/form-data" class="space-y-4">
+                <form method="POST" action="{{ route('subscriber.profile.update') }}" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
                     @csrf
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
-                        <input type="text" name="full_name" value="{{ old('full_name', $subscriber->full_name) }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
-                    </div>
+                    @php
+                        $legacyNameParts = preg_split('/\s+/', trim($subscriber->full_name)) ?: [];
+                        $portalSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV'];
+                        $portalSuffix = in_array(end($legacyNameParts), $portalSuffixes, true) ? array_pop($legacyNameParts) : 'N/A';
+                        $legacyFirstName = array_shift($legacyNameParts) ?: '';
+                        $legacySurname = array_pop($legacyNameParts) ?: '';
+                        $legacyMiddleName = implode(' ', $legacyNameParts);
+                        $portalFirstName = $subscriber->first_name ?: $legacyFirstName;
+                        $portalSurname = $subscriber->surname ?: $legacySurname;
+                        $portalMiddleName = $subscriber->middle_name ?: $legacyMiddleName;
+                        $portalSuffix = $subscriber->suffix ?: $portalSuffix;
+                    @endphp
+                    <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+                        <section class="space-y-3">
+                            <h3 class="text-sm font-bold text-slate-800">Personal Details</h3>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                    <label for="profileFirstName" class="block text-xs font-bold text-slate-700 mb-1">First Name</label>
+                                    <input id="profileFirstName" type="text" name="first_name" value="{{ old('first_name', $portalFirstName) }}" maxlength="80" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label for="profileMiddleName" class="block text-xs font-bold text-slate-700 mb-1">Middle Name</label>
+                                    <input id="profileMiddleName" type="text" name="middle_name" value="{{ old('middle_name', $portalMiddleName) }}" maxlength="80" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label for="profileSurname" class="block text-xs font-bold text-slate-700 mb-1">Surname</label>
+                                    <input id="profileSurname" type="text" name="surname" value="{{ old('surname', $portalSurname) }}" maxlength="80" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label for="profileSuffix" class="block text-xs font-bold text-slate-700 mb-1">Suffix</label>
+                                    <select id="profileSuffix" name="suffix" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                        @foreach(['N/A', 'Jr.', 'Sr.', 'II', 'III', 'IV'] as $suffix)
+                                            <option value="{{ $suffix }}" {{ old('suffix', $portalSuffix) === $suffix ? 'selected' : '' }}>{{ $suffix }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="border-t border-slate-200 pt-4 space-y-3">
+                            <h3 class="text-sm font-bold text-slate-800">Contact</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label for="profileFacebookName" class="block text-xs font-bold text-slate-700 mb-1">Facebook Name</label>
+                                    <input id="profileFacebookName" type="text" name="facebook_name" value="{{ old('facebook_name', $subscriber->facebook_name) }}" maxlength="255" placeholder="Your Facebook name" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label for="profilePhoneNumber" class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                                    <input id="profilePhoneNumber" type="tel" name="phone_number" value="{{ old('phone_number', $subscriber->phone_number) }}" maxlength="20" required placeholder="Your contact number" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium">
+                                </div>
+                            </div>
+                        </section>
 
                     <!-- PROFILE PHOTO INPUT & REAL-TIME PREVIEW -->
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Profile Photo</label>
-                        <input type="file" id="profilePhotoInput" name="profile_photo" accept="image/*" onchange="previewProfileImage(event)" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-slate-100 file:font-bold">
+                    <section class="border-t border-slate-200 pt-4 space-y-3">
+                        <h3 class="text-sm font-bold text-slate-800">Profile Photo</h3>
+                        <div>
+                        <label for="profilePhotoInput" class="block text-xs font-bold text-slate-700 mb-1">Choose a photo</label>
+                        <input type="file" id="profilePhotoInput" name="profile_photo" accept="image/png,image/jpeg,image/jpg,image/webp" onchange="previewProfileImage(event)" class="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:font-semibold">
                         
                         <!-- Preview Box -->
-                        <div id="profilePhotoPreviewBox" class="mt-3 flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-2xl bg-slate-50">
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Photo Preview</span>
+                        <div id="profilePhotoPreviewBox" class="mt-3 flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50">
                             <div class="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-300 shadow-sm bg-slate-200 flex items-center justify-center">
                                 <img id="profilePhotoPreviewImg" 
                                     src="{{ $subscriber->profile_photo ? asset('storage/' . $subscriber->profile_photo) : '' }}" 
@@ -754,12 +820,14 @@
                                     No Image
                                 </span>
                             </div>
+                            <p class="text-xs text-slate-500">Preview of your current or selected photo.</p>
                         </div>
-                    </div>
+                        </div>
+                    </section>
 
                     <!-- CHANGE PASSWORD SECTION WITH SHOW/HIDE TOGGLES & STRENGTH METER -->
-                    <div class="border-t border-slate-100 pt-3 space-y-3">
-                        <span class="text-xs font-bold text-slate-900 block">Change Password <span class="text-slate-400 font-normal">(Optional)</span></span>
+                    <section class="border-t border-slate-200 pt-4 space-y-3">
+                        <span class="text-sm font-bold text-slate-800 block">Change Password <span class="text-xs text-slate-500 font-normal">(Optional)</span></span>
                         
                         <!-- Current Password -->
                         <div>
@@ -820,11 +888,11 @@
                             </div>
                             <span id="matchFeedback" class="text-[10px] font-bold mt-1 block hidden"></span>
                         </div>
+                    </section>
                     </div>
-
-                    <div class="flex gap-2 pt-2">
-                        <button type="button" onclick="closeEditProfileModal()" class="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-bold text-slate-600">Cancel</button>
-                        <button type="submit" class="flex-1 rounded-xl bg-slate-900 py-2 text-xs font-bold text-white shadow">Save Changes</button>
+                    <div class="shrink-0 flex gap-2 px-5 sm:px-6 py-4 border-t border-slate-200 bg-white">
+                        <button type="button" onclick="closeEditProfileModal()" class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                        <button type="submit" class="flex-1 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white shadow hover:bg-slate-800">Save Changes</button>
                     </div>
                 </form>
             </div>
@@ -1073,9 +1141,11 @@
 
         function openEditProfileModal() {
             document.getElementById('editProfileModal')?.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
         }
         function closeEditProfileModal() {
             document.getElementById('editProfileModal')?.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
         }
 
         function openOutstandingPaymentModal() {
@@ -1094,6 +1164,10 @@
                 closeOutstandingPaymentModal();
             }
         });
+
+        @if($errors->has('full_name') || $errors->has('facebook_name') || $errors->has('phone_number') || $errors->has('profile_photo') || $errors->has('current_password') || $errors->has('new_password'))
+            openEditProfileModal();
+        @endif
     </script>
 </body>
 </html>

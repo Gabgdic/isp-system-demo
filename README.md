@@ -60,8 +60,8 @@ The Laravel framework is open-sourced software licensed under the [MIT license](
 
 ## Monthly billing scheduler
 
-The `billing:generate-monthly` Artisan command is scheduled for midnight on the first of each month. It is safe to run manually; existing bills for the month are not duplicated.
+The `billing:generate-monthly` Artisan command runs daily at midnight and creates a bill only for subscribers whose signup day falls on that date. If a month is shorter than a subscriber's signup day (for example, signup on the 31st), the bill is generated on that month's final day. The command also corrects existing billing records to use the subscriber's signup day, clamped to the last day of each billing month. Bills are unique per subscriber and billing month, so running the command again does not duplicate them.
 
-- **Local development:** run `composer dev`. This starts Laravel's `schedule:work` alongside the web server and other development processes. To generate bills immediately, run `php artisan billing:generate-monthly`.
+- **Local development:** run `composer dev`. This starts Laravel's `schedule:work` alongside the web server and other development processes. To process subscribers due today, run `php artisan billing:generate-monthly`.
 - **Production:** keep Laravel's scheduler running by invoking `php artisan schedule:run` every minute. On Windows, configure Task Scheduler to run that command every minute with the project directory as its working directory. On Linux, configure cron to invoke the same command once per minute.
 - **Check registration:** run `php artisan schedule:list` and confirm `billing:generate-monthly` appears.

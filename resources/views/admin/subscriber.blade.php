@@ -102,94 +102,148 @@
 
 <!-- Create Subscriber Modal -->
 <div id="createSubscriberModal" class="hidden fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
-    <div class="modal-box bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-5 border border-slate-200 max-h-[85vh] overflow-y-auto">
-        <div class="flex items-center justify-between mb-4">
+    <div class="modal-box bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between p-5 sm:px-7 border-b border-slate-200 bg-slate-50/80">
             <div>
                 <h2 class="text-xl font-bold text-slate-900">Create Subscriber</h2>
-                <p class="text-sm text-slate-500">Register a new subscriber account.</p>
+                <p class="text-sm text-slate-500 mt-1">Add account, contact, and service location details.</p>
             </div>
             <button type="button" onclick="closeCreateSubscriberModal()" class="w-9 h-9 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition">✕</button>
         </div>
 
-        <form method="POST" action="{{ route('subscriber.store') }}" enctype="multipart/form-data" class="space-y-3">
+        <form method="POST" action="{{ route('subscriber.store') }}" class="flex min-h-0 flex-1 flex-col">
             @csrf
-
-            <div>
-                <label class="form-label">Profile Photo</label>
-                <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/jpg,image/webp" class="form-input">
-                <p class="text-xs text-slate-500 mt-1">Optional. If no photo is uploaded, the first letter of the subscriber name will be shown.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                    <label class="form-label">Full Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="full_name" class="form-input" required>
-                </div>
-
-                <div>
-                    <label class="form-label">Username <span class="text-red-500">*</span></label>
-                    <input type="text" name="username" class="form-input" required>
-                </div>
-
-                <div>
-                    <label class="form-label">Password <span class="text-red-500">*</span></label>
-                    <div class="relative">
-                        <input id="createSubscriberPassword" type="password" name="password" class="form-input pr-14" placeholder="Enter password" minlength="8" required>
-                        <button type="button" onclick="togglePassword('createSubscriberPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+            <div class="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
+                <section class="space-y-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">Personal Details</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">At least 8 characters with 1 uppercase, 1 lowercase, 1 number, and 1 special character.</p>
-                </div>
-
-                <div>
-                    <label class="form-label">Confirm Password <span class="text-red-500">*</span></label>
-                    <div class="relative">
-                        <input id="createSubscriberPasswordConfirmation" type="password" name="password_confirmation" class="form-input pr-14" placeholder="Confirm password" minlength="8" required>
-                        <button type="button" onclick="togglePassword('createSubscriberPasswordConfirmation', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="form-label">First Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="first_name" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Middle Name</label>
+                            <input type="text" name="middle_name" class="form-input">
+                        </div>
+                        <div>
+                            <label class="form-label">Surname <span class="text-red-500">*</span></label>
+                            <input type="text" name="surname" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Suffix</label>
+                            <select name="suffix" class="form-input" required>
+                                @foreach($suffixes as $suffix)
+                                    <option value="{{ $suffix }}" {{ $suffix === 'N/A' ? 'selected' : '' }}>{{ $suffix }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                </div>
+                </section>
 
-                <div>
-                    <label class="form-label">Email</label>
-                    <input type="email" name="email" class="form-input">
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Contact</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Facebook Name</label>
+                            <input type="text" name="facebook_name" class="form-input" placeholder="Subscriber's Facebook name">
+                        </div>
+                        <div>
+                            <label class="form-label">Phone Number <span class="text-red-500">*</span></label>
+                            <input type="text" name="phone_number" class="form-input" required>
+                        </div>
+                    </div>
+                </section>
 
-                <div>
-                    <label class="form-label">Phone Number <span class="text-red-500">*</span></label>
-                    <input type="text" name="phone_number" class="form-input" required>
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Authentication</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Username <span class="text-red-500">*</span></label>
+                            <input type="text" name="username" class="form-input" required>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">Password <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input id="createSubscriberPassword" type="password" name="password" class="form-input pr-14" placeholder="Enter password" minlength="8" required>
+                                    <button type="button" onclick="togglePassword('createSubscriberPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1 leading-relaxed">At least 8 characters with 1 uppercase, 1 lowercase, 1 number, and 1 special character.</p>
+                            </div>
+                            <div>
+                                <label class="form-label">Confirm Password <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input id="createSubscriberPasswordConfirmation" type="password" name="password_confirmation" class="form-input pr-14" placeholder="Confirm password" minlength="8" required>
+                                    <button type="button" onclick="togglePassword('createSubscriberPasswordConfirmation', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-                <div class="md:col-span-2">
-                    <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
-                    <select name="subscription_plan_id" class="form-input" required>
-                        <option value="">Select subscription plan</option>
-                        @foreach($plans as $plan)
-                            <option value="{{ $plan->id }}">{{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}</option>
-                        @endforeach
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">Plan price is based on the current settings.</p>
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Plan</h3>
+                    <div>
+                        <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
+                        <select name="subscription_plan_id" class="form-input" required>
+                            <option value="">Select subscription plan</option>
+                            @foreach($plans as $plan)
+                                <option value="{{ $plan->id }}">{{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-slate-500 mt-1">Plan price is based on the current settings.</p>
+                    </div>
+                </section>
+
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Location</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="form-label">Barangay <span class="text-red-500">*</span></label>
+                            <select id="create_barangay" name="barangay" class="form-input" required>
+                                <option value="">Select barangay</option>
+                                @foreach($barangaysByMunicipality['Sogod'] as $barangay)
+                                    <option value="{{ $barangay }}">{{ $barangay }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Municipality / City <span class="text-red-500">*</span></label>
+                            <select id="create_municipality" name="municipality" class="form-input" onchange="populateBarangays('create_barangay', this.value)" required>
+                                @foreach(array_keys($barangaysByMunicipality) as $municipality)
+                                    <option value="{{ $municipality }}" {{ $municipality === 'Sogod' ? 'selected' : '' }}>{{ $municipality }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Province <span class="text-red-500">*</span></label>
+                            <select name="province" class="form-input" required>
+                                <option value="Southern Leyte" selected>Southern Leyte</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <div>
-                <label class="form-label">Address <span class="text-red-500">*</span></label>
-                <textarea name="address" rows="2" class="form-input resize-none" required></textarea>
+            <div class="shrink-0 px-5 sm:px-7 py-4 border-t border-slate-200 bg-white">
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
+                    Create Subscriber
+                </button>
             </div>
-
-            <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
-                Create Subscriber
-            </button>
         </form>
     </div>
 </div>
 
 <!-- Edit Subscriber Modal -->
 <div id="editSubscriberModal" class="hidden fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
-    <div class="modal-box bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-5 border border-slate-200 max-h-[85vh] overflow-y-auto">
+    <div class="modal-box bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col">
 
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between p-5 sm:px-7 border-b border-slate-200 bg-slate-50/80">
             <div>
                 <h2 class="text-xl font-bold text-slate-900">Edit Subscriber</h2>
-                <p class="text-sm text-slate-500">Update subscriber account information.</p>
+                <p class="text-sm text-slate-500 mt-1">Update account, contact, and service location details.</p>
             </div>
 
             <button type="button" onclick="closeEditSubscriberModal()" class="w-9 h-9 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition">
@@ -197,76 +251,136 @@
             </button>
         </div>
 
-        <form id="editSubscriberForm" method="POST" enctype="multipart/form-data" class="space-y-3">
+        <form id="editSubscriberForm" method="POST" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
             @csrf
             @method('PUT')
 
-            <div>
-                <label class="form-label">Change Profile Photo</label>
-                <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/jpg,image/webp" class="form-input">
-                <p class="text-xs text-slate-500 mt-1">Optional. Leave empty if you do not want to change the current photo.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                    <label class="form-label">Full Name <span class="text-red-500">*</span></label>
-                    <input id="edit_full_name" type="text" name="full_name" class="form-input" required>
-                </div>
-
-                <div>
-                    <label class="form-label">Username <span class="text-red-500">*</span></label>
-                    <input id="edit_username" type="text" name="username" class="form-input" required>
-                </div>
-
-                <div>
-                    <label class="form-label">New Password</label>
-                    <div class="relative">
-                        <input id="editSubscriberPassword" type="password" name="password" class="form-input pr-14" placeholder="Leave blank to keep current password" minlength="8">
-                        <button type="button" onclick="togglePassword('editSubscriberPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+            <div class="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
+                <section class="space-y-3">
+                    <h3 class="text-sm font-bold text-slate-800">Personal Details</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="form-label">First Name <span class="text-red-500">*</span></label>
+                            <input id="edit_first_name" type="text" name="first_name" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Middle Name</label>
+                            <input id="edit_middle_name" type="text" name="middle_name" class="form-input">
+                        </div>
+                        <div>
+                            <label class="form-label">Surname <span class="text-red-500">*</span></label>
+                            <input id="edit_surname" type="text" name="surname" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Suffix</label>
+                            <select id="edit_suffix" name="suffix" class="form-input" required>
+                                @foreach($suffixes as $suffix)
+                                    <option value="{{ $suffix }}">{{ $suffix }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">At least 8 characters with 1 uppercase, 1 lowercase, 1 number, and 1 special character. Leave blank to keep the current password.</p>
-                </div>
+                </section>
 
-                <div>
-                    <label class="form-label">Confirm New Password</label>
-                    <div class="relative">
-                        <input id="editSubscriberPasswordConfirmation" type="password" name="password_confirmation" class="form-input pr-14" placeholder="Confirm new password" minlength="8">
-                        <button type="button" onclick="togglePassword('editSubscriberPasswordConfirmation', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Contact</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Facebook Name</label>
+                            <input id="edit_facebook_name" type="text" name="facebook_name" class="form-input" placeholder="Subscriber's Facebook name">
+                        </div>
+                        <div>
+                            <label class="form-label">Phone Number <span class="text-red-500">*</span></label>
+                            <input id="edit_phone_number" type="text" name="phone_number" class="form-input" required>
+                        </div>
                     </div>
-                </div>
+                </section>
 
-                <div>
-                    <label class="form-label">Email</label>
-                    <input id="edit_email" type="email" name="email" class="form-input">
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Authentication</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Username <span class="text-red-500">*</span></label>
+                            <input id="edit_username" type="text" name="username" class="form-input" required>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">New Password</label>
+                                <div class="relative">
+                                    <input id="editSubscriberPassword" type="password" name="password" class="form-input pr-14" placeholder="Leave blank to keep current password" minlength="8">
+                                    <button type="button" onclick="togglePassword('editSubscriberPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1 leading-relaxed">Use at least 8 characters with uppercase, lowercase, a number, and a special character.</p>
+                            </div>
+                            <div>
+                                <label class="form-label">Confirm New Password</label>
+                                <div class="relative">
+                                    <input id="editSubscriberPasswordConfirmation" type="password" name="password_confirmation" class="form-input pr-14" placeholder="Confirm new password" minlength="8">
+                                    <button type="button" onclick="togglePassword('editSubscriberPasswordConfirmation', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900">Show</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-                <div>
-                    <label class="form-label">Phone Number <span class="text-red-500">*</span></label>
-                    <input id="edit_phone_number" type="text" name="phone_number" class="form-input" required>
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Plan</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
+                            <select id="edit_subscription_plan_id" name="subscription_plan_id" class="form-input" required>
+                                <option value="">Select subscription plan</option>
+                                @foreach($plans as $plan)
+                                    <option value="{{ $plan->id }}" data-plan-name="{{ $plan->plan_name }}" data-price="{{ $plan->price }}">
+                                        {{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="text-xs text-slate-500 mt-1">Uses the current price from Settings.</p>
+                        </div>
+                        <div>
+                            <label class="form-label">Change Profile Photo</label>
+                            <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/jpg,image/webp" class="form-input">
+                            <p class="text-xs text-slate-500 mt-1">Optional. Leave empty to keep the current photo.</p>
+                        </div>
+                    </div>
+                </section>
 
-                <div class="md:col-span-2">
-                    <label class="form-label">Subscription Plan <span class="text-red-500">*</span></label>
-                    <select id="edit_subscription_plan_id" name="subscription_plan_id" class="form-input" required>
-                        <option value="">Select subscription plan</option>
-                        @foreach($plans as $plan)
-                            <option value="{{ $plan->id }}" data-plan-name="{{ $plan->plan_name }}" data-price="{{ $plan->price }}">
-                                {{ $plan->plan_name }} - ₱{{ number_format($plan->price, 2) }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">Updating the plan will use the current price from Settings.</p>
-                </div>
+                <section class="space-y-3 border-t border-slate-200 pt-5">
+                    <h3 class="text-sm font-bold text-slate-800">Location</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="form-label">Barangay <span class="text-red-500">*</span></label>
+                            <select id="edit_barangay" name="barangay" class="form-input" required>
+                                <option value="">Select barangay</option>
+                                @foreach($barangaysByMunicipality['Sogod'] as $barangay)
+                                    <option value="{{ $barangay }}">{{ $barangay }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Municipality / City <span class="text-red-500">*</span></label>
+                            <select id="edit_municipality" name="municipality" class="form-input" onchange="populateBarangays('edit_barangay', this.value)" required>
+                                @foreach(array_keys($barangaysByMunicipality) as $municipality)
+                                    <option value="{{ $municipality }}" {{ $municipality === 'Sogod' ? 'selected' : '' }}>{{ $municipality }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Province <span class="text-red-500">*</span></label>
+                            <select id="edit_province" name="province" class="form-input" required>
+                                <option value="Southern Leyte">Southern Leyte</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <div>
-                <label class="form-label">Address <span class="text-red-500">*</span></label>
-                <textarea id="edit_address" name="address" rows="2" class="form-input resize-none" required></textarea>
+            <div class="shrink-0 px-5 sm:px-7 py-4 border-t border-slate-200 bg-white">
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
+                    Save Changes
+                </button>
             </div>
-
-            <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">
-                Save Changes
-            </button>
         </form>
     </div>
 </div>
@@ -356,6 +470,21 @@ html.dark .subscriber-card {
     box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
 }
 
+html.dark .form-label {
+    color: #d1d5db;
+}
+
+html.dark .form-input {
+    color: #f3f4f6;
+    background: #111827;
+    border-color: #4b5563;
+}
+
+html.dark .form-input:focus {
+    border-color: #9ca3af;
+    box-shadow: 0 0 0 4px rgba(156, 163, 175, 0.12);
+}
+
 .animate-fadeIn {
     animation: fadeIn 0.45s ease-in-out;
 }
@@ -403,6 +532,18 @@ html.dark .subscriber-card {
 </style>
 
 <script>
+const barangaysByMunicipality = @json($barangaysByMunicipality);
+
+function populateBarangays(selectId, municipality, selectedBarangay = '') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    select.replaceChildren(new Option('Select barangay', ''));
+    (barangaysByMunicipality[municipality] || []).forEach(barangay => {
+        select.add(new Option(barangay, barangay, false, barangay === selectedBarangay));
+    });
+}
+
 function openCreateSubscriberModal() {
     const modal = document.getElementById('createSubscriberModal');
     modal.classList.remove('hidden');
@@ -422,11 +563,35 @@ function openEditSubscriberModal(button) {
 
     form.action = '/subscriber/update/' + id;
 
-    document.getElementById('edit_full_name').value = button.dataset.fullName || '';
+    const nameParts = (button.dataset.fullName || '').trim().split(/\s+/).filter(Boolean);
+    const knownSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV'];
+    let legacySuffix = 'N/A';
+    if (knownSuffixes.includes(nameParts[nameParts.length - 1])) {
+        legacySuffix = nameParts.pop();
+    }
+
+    const legacyFirstName = nameParts.shift() || '';
+    const legacySurname = nameParts.pop() || '';
+    const legacyMiddleName = nameParts.join(' ');
+    document.getElementById('edit_first_name').value = button.dataset.firstName || legacyFirstName;
+    document.getElementById('edit_middle_name').value = button.dataset.middleName || legacyMiddleName;
+    document.getElementById('edit_surname').value = button.dataset.surname || legacySurname;
+    document.getElementById('edit_suffix').value = button.dataset.suffix || legacySuffix;
     document.getElementById('edit_username').value = button.dataset.username || '';
-    document.getElementById('edit_email').value = button.dataset.email || '';
+    document.getElementById('edit_facebook_name').value = button.dataset.facebookName || '';
     document.getElementById('edit_phone_number').value = button.dataset.phoneNumber || '';
-    document.getElementById('edit_address').value = button.dataset.address || '';
+
+    const legacyAddress = button.dataset.address || '';
+    const municipality = button.dataset.municipality
+        || (/\bBontoc\b/i.test(legacyAddress) ? 'Bontoc' : 'Sogod');
+    const municipalitySelect = document.getElementById('edit_municipality');
+    municipalitySelect.value = municipality;
+    const municipalityBarangays = [...(barangaysByMunicipality[municipality] || [])];
+    const legacyBarangay = municipalityBarangays
+        .sort((first, second) => second.length - first.length)
+        .find(barangay => legacyAddress.toLocaleLowerCase().includes(barangay.toLocaleLowerCase())) || '';
+    populateBarangays('edit_barangay', municipality, button.dataset.barangay || legacyBarangay);
+    document.getElementById('edit_province').value = button.dataset.province || 'Southern Leyte';
     document.getElementById('editSubscriberPassword').value = '';
     document.getElementById('editSubscriberPasswordConfirmation').value = '';
 

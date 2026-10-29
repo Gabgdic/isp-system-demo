@@ -1,5 +1,24 @@
 @php
     $systemSettings = $systemSettings ?? \App\Models\SystemSetting::first();
+    $receiptNumber = isset($paymentSubmission)
+        ? ($paymentSubmission->reference_number ?: 'PAY-' . $paymentSubmission->id)
+        : 'REC-' . str_pad($billingRecord->id, 6, '0', STR_PAD_LEFT);
+    $receiptDate = isset($paymentSubmission)
+        ? ($paymentSubmission->reviewed_at ?? $billingRecord->paid_at)
+        : $billingRecord->paid_at;
+    $receiptSubscriber = isset($paymentSubmission)
+        ? $paymentSubmission->subscriber
+        : $billingRecord->subscriber;
+    $receiptTotal = isset($paymentSubmission)
+        ? $paymentSubmission->amount_paid
+        : $billingRecord->amount;
+    $receiptPeriods = isset($receiptItems)
+        ? $receiptItems->map(fn ($item) => \Carbon\Carbon::create(
+            $item->bill->billing_year,
+            $item->bill->billing_month,
+            1
+        )->format('M Y'))->unique()->implode(', ')
+        : \Carbon\Carbon::create($billingRecord->billing_year, $billingRecord->billing_month, 1)->format('F Y');
 @endphp
 
 <!DOCTYPE html>
@@ -7,7 +26,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Official Receipt - #REC-{{ str_pad($billingRecord->id, 6, '0', STR_PAD_LEFT) }}</title>
+    <title>Official Receipt - {{ $receiptNumber }}</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -64,10 +83,10 @@
                         Official Receipt
                     </span>
                     <p class="text-xs font-mono font-bold text-slate-700 mt-2">
-                        #REC-{{ str_pad($billingRecord->id, 6, '0', STR_PAD_LEFT) }}
+                        {{ $receiptNumber }}
                     </p>
                     <p class="text-[11px] font-semibold text-slate-500 mt-0.5">
-                        Payment Date: <span class="text-slate-800">{{ $billingRecord->paid_at ? \Carbon\Carbon::parse($billingRecord->paid_at)->format('M d, Y') : \Carbon\Carbon::now()->format('M d, Y') }}</span>
+                        Payment Date: <span class="text-slate-800">{{ $receiptDate ? \Carbon\Carbon::parse($receiptDate)->format('M d, Y') : \Carbon\Carbon::now()->format('M d, Y') }}</span>
                     </p>
                 </div>
             </div>
@@ -81,10 +100,10 @@
                     </h2>
                     <div class="space-y-1.5 text-xs">
                         <p class="text-slate-500">
-                            Subscriber Name: <span class="font-bold text-slate-900 text-sm ml-1">{{ $billingRecord->subscriber->full_name ?? 'N/A' }}</span>
+                            Subscriber Name: <span class="font-bold text-slate-900 text-sm ml-1">{{ $receiptSubscriber->full_name ?? 'N/A' }}</span>
                         </p>
                         <p class="text-slate-500">
-                            Service Address: <span class="font-semibold text-slate-800 ml-1">{{ $billingRecord->subscriber->address ?? 'N/A' }}</span>
+                            Service Address: <span class="font-semibold text-slate-800 ml-1">{{ $receiptSubscriber->address ?? 'N/A' }}</span>
                         </p>
                     </div>
                 </div>
@@ -96,7 +115,7 @@
                     </h2>
                     <div class="space-y-1.5 text-xs">
                         <p class="text-slate-500">
-                            Billing Period: <span class="font-bold text-slate-900 ml-1">{{ \Carbon\Carbon::create($billingRecord->billing_year, $billingRecord->billing_month, 1)->format('F Y') }}</span>
+                            Billing Period(s): <span class="font-bold text-slate-900 ml-1">{{ $receiptPeriods }}</span>
                         </p>
                         <p class="text-slate-500">
                             Status: <span class="font-bold text-emerald-600 uppercase ml-1">Paid / Cleared</span>
@@ -116,6 +135,21 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 text-slate-800 font-medium">
+                        @if(isset($paymentSubmission))
+                            @foreach($receiptItems as $item)
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="py-3 px-4 font-semibold text-slate-900">
+                                        Subscription Fee - {{ \Carbon\Carbon::create($item->bill->billing_year, $item->bill->billing_month, 1)->format('F Y') }}
+                                    </td>
+                                    <td class="py-3 px-4 text-center text-slate-600">
+                                        {{ $paymentSubmission->reference_number ?? 'N/A' }}
+                                    </td>
+                                    <td class="py-3 px-4 text-right font-bold text-slate-900">
+                                        ₱{{ number_format($item->amount, 2) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        @else
                         @php
                             // Filter allocations to exclude rejected payment submissions
                             $validAllocations = $billingRecord->paymentAllocations ? $billingRecord->paymentAllocations->filter(function($allocation) {
@@ -147,16 +181,17 @@
                                 </td>
                                 <td class="py-3 px-4 text-center text-slate-600">Cash / Direct Payment</td>
                                 <td class="py-3 px-4 text-right font-bold text-slate-900">
-                                    ₱{{ number_format($billingRecord->amount, 2) }}
+                                    ₱{{ number_format($receiptTotal, 2) }}
                                 </td>
                             </tr>
+                        @endif
                         @endif
                     </tbody>
                     <tfoot>
                         <tr class="bg-slate-50 font-black text-xs text-slate-900 border-t-2 border-slate-300">
                             <td colspan="2" class="py-3.5 px-4 text-right uppercase tracking-wider">Total Amount Paid</td>
                             <td class="py-3.5 px-4 text-right text-base font-extrabold text-emerald-600">
-                                ₱{{ number_format($billingRecord->amount, 2) }}
+                                ₱{{ number_format($receiptTotal, 2) }}
                             </td>
                         </tr>
                     </tfoot>

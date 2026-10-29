@@ -230,18 +230,27 @@
                 <h2 class="text-base font-bold text-slate-900">Billing Records</h2>
                 <p class="text-xs text-slate-500">Track subscriber invoices, payment status, and statements.</p>
             </div>
-            <div class="relative w-full sm:w-72">
-                <input
-                    type="text"
-                    id="billingRecordsSearch"
-                    value="{{ $search ?? '' }}"
-                    placeholder="Search subscriber, status, or period..."
-                    class="form-input pr-10"
-                    autocomplete="off"
+            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <button
+                    type="button"
+                    onclick="openManualPaymentModal()"
+                    class="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold whitespace-nowrap"
                 >
-                <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0z"/>
-                </svg>
+                    Record Manual Payment
+                </button>
+                <div class="relative w-full sm:w-72">
+                    <input
+                        type="text"
+                        id="billingRecordsSearch"
+                        value="{{ $search ?? '' }}"
+                        placeholder="Search subscriber, status, or period..."
+                        class="form-input pr-10"
+                        autocomplete="off"
+                    >
+                    <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0z"/>
+                    </svg>
+                </div>
             </div>
         </div>
         <div id="billing-records-content" class="flex flex-col flex-1 min-h-0">
@@ -251,14 +260,68 @@
 
 </div>
 
+<!-- MANUAL PAYMENT MODAL -->
+<div id="manualPaymentModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Record Manual Payments</h3>
+                <p class="text-xs text-slate-500 mt-1">Select subscribers to record their full outstanding balances.</p>
+            </div>
+            <button type="button" onclick="closeManualPaymentModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">✕</button>
+        </div>
+
+        <form method="POST" action="{{ route('billing.manual-payments.store') }}" class="flex flex-col min-h-0">
+            @csrf
+            <div class="px-5 py-3 flex items-center justify-between border-b border-slate-100">
+                <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                    <input id="manualPaymentSelectAll" type="checkbox" class="rounded border-slate-300" onchange="toggleAllManualPaymentSubscribers(this)">
+                    Select all
+                </label>
+                <span id="manualPaymentSelectedTotal" class="text-sm font-bold text-slate-900">Selected total: ₱0.00</span>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-2">
+                @forelse($manualPaymentSubscribers as $manualPaymentSubscriber)
+                    @php($subscriberOutstanding = $manualPaymentSubscriber->billingRecords->sum(fn ($bill) => (float) $bill->amount))
+                    <label class="flex items-center justify-between gap-4 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <span class="flex items-center gap-3 min-w-0">
+                            <input
+                                type="checkbox"
+                                name="subscriber_ids[]"
+                                value="{{ $manualPaymentSubscriber->id }}"
+                                data-outstanding="{{ number_format($subscriberOutstanding, 2, '.', '') }}"
+                                class="manual-payment-subscriber rounded border-slate-300"
+                                onchange="updateManualPaymentTotal()"
+                            >
+                            <span class="min-w-0">
+                                <span class="block text-sm font-semibold text-slate-900 truncate">{{ $manualPaymentSubscriber->full_name }}</span>
+                                <span class="block text-xs text-slate-500">{{ $manualPaymentSubscriber->username }} · {{ $manualPaymentSubscriber->billingRecords->count() }} outstanding {{ \Illuminate\Support\Str::plural('bill', $manualPaymentSubscriber->billingRecords->count()) }}</span>
+                            </span>
+                        </span>
+                        <span class="font-bold text-slate-900 whitespace-nowrap">₱{{ number_format($subscriberOutstanding, 2) }}</span>
+                    </label>
+                @empty
+                    <p class="py-8 text-center text-sm text-slate-500">No subscribers have unpaid or overdue bills.</p>
+                @endforelse
+            </div>
+
+            <div class="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                <button type="button" onclick="closeManualPaymentModal()" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Cancel</button>
+                <button id="submitManualPayments" type="submit" disabled onclick="return confirmManualPayments()" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold">Record Selected</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- STATEMENT OF ACCOUNT (SOA) PREVIEW MODAL -->
 <div id="soaModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
-    <div class="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden my-8 border border-slate-200 flex flex-col max-h-[90vh] modal-printable-container">
+    <div class="relative bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden my-8 border border-slate-200 flex flex-col max-h-[92vh]">
         <!-- Action Header -->
         <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 no-print">
             <h3 class="text-sm font-bold text-slate-900">Statement of Account Preview</h3>
             <div class="flex items-center gap-2">
-                <button type="button" onclick="window.print()" class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm transition">
+                <button type="button" onclick="printPreviewFrame('soa-preview-frame')" class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm transition">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                     </svg>
@@ -270,23 +333,20 @@
             </div>
         </div>
 
-        <!-- AJAX Content Placeholder -->
-        <div id="soa-modal-content" class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-center py-12 text-slate-400 text-xs">
-                Loading Statement of Account...
-            </div>
+        <div class="flex-1 min-h-0 bg-slate-100 p-2 sm:p-4">
+            <iframe id="soa-preview-frame" title="Printable Statement of Account" class="h-[75vh] w-full rounded-lg border border-slate-200 bg-white"></iframe>
         </div>
     </div>
 </div>
 
 <!-- OFFICIAL RECEIPT PREVIEW MODAL -->
 <div id="receiptModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
-    <div class="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden my-8 border border-slate-200 flex flex-col max-h-[90vh] modal-printable-container">
+    <div class="relative bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden my-8 border border-slate-200 flex flex-col max-h-[92vh]">
         <!-- Action Header -->
         <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 no-print">
             <h3 class="text-sm font-bold text-slate-900">Official Receipt Preview</h3>
             <div class="flex items-center gap-2">
-                <button type="button" onclick="window.print()" class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm transition">
+                <button type="button" onclick="printPreviewFrame('receipt-preview-frame')" class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm transition">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                     </svg>
@@ -298,11 +358,8 @@
             </div>
         </div>
 
-        <!-- AJAX Content Placeholder -->
-        <div id="receipt-modal-content" class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-center py-12 text-slate-400 text-xs">
-                Loading Receipt...
-            </div>
+        <div class="flex-1 min-h-0 bg-slate-100 p-2 sm:p-4">
+            <iframe id="receipt-preview-frame" title="Printable Official Receipt" class="h-[75vh] w-full rounded-lg border border-slate-200 bg-white"></iframe>
         </div>
     </div>
 </div>
@@ -483,48 +540,6 @@
     box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
 }
 
-@media print {
-    body * {
-        visibility: hidden !important;
-    }
-
-    #soaModal, #soaModal *,
-    #receiptModal, #receiptModal * {
-        visibility: visible !important;
-    }
-
-    #soaModal, #receiptModal {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 100% !important;
-        height: auto !important;
-        background: white !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    #soaModal .modal-printable-container,
-    #receiptModal .modal-printable-container {
-        max-width: 100% !important;
-        max-height: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-    }
-
-    #soaModal .no-print,
-    #receiptModal .no-print {
-        display: none !important;
-    }
-
-    #soa-modal-content,
-    #receipt-modal-content {
-        padding: 0 !important;
-        overflow: visible !important;
-    }
-}
 </style>
 
 <script>
@@ -610,6 +625,46 @@ function closePaymentModal(id) {
     }
 }
 
+function openManualPaymentModal() {
+    const modal = document.getElementById('manualPaymentModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+}
+
+function closeManualPaymentModal() {
+    const modal = document.getElementById('manualPaymentModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+}
+
+function toggleAllManualPaymentSubscribers(selectAll) {
+    document.querySelectorAll('.manual-payment-subscriber').forEach((checkbox) => {
+        checkbox.checked = selectAll.checked;
+    });
+    updateManualPaymentTotal();
+}
+
+function updateManualPaymentTotal() {
+    const checkboxes = Array.from(document.querySelectorAll('.manual-payment-subscriber'));
+    const selected = checkboxes.filter((checkbox) => checkbox.checked);
+    const total = selected.reduce((sum, checkbox) => sum + Number(checkbox.dataset.outstanding || 0), 0);
+    const totalElement = document.getElementById('manualPaymentSelectedTotal');
+    const submitButton = document.getElementById('submitManualPayments');
+    const selectAll = document.getElementById('manualPaymentSelectAll');
+
+    totalElement.textContent = `Selected total: ₱${total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    submitButton.disabled = selected.length === 0;
+    selectAll.checked = checkboxes.length > 0 && selected.length === checkboxes.length;
+    selectAll.indeterminate = selected.length > 0 && selected.length < checkboxes.length;
+}
+
+function confirmManualPayments() {
+    const selectedCount = document.querySelectorAll('.manual-payment-subscriber:checked').length;
+    return selectedCount > 0 && confirm(`Record full outstanding balances for ${selectedCount} selected subscriber(s)?`);
+}
+
 function showRejectForm(id) {
     const form = document.getElementById('reject-form-' + id);
     if (form) form.classList.remove('hidden');
@@ -653,36 +708,16 @@ function closeEditPlanModal() {
 
 function openSoaModal(subscriberId) {
     const modal = document.getElementById('soaModal');
-    const content = document.getElementById('soa-modal-content');
-
-    content.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
-            <svg class="animate-spin h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Loading Statement of Account...</span>
-        </div>
-    `;
+    document.getElementById('soa-preview-frame').src = `/billing/soa/preview/${subscriberId}`;
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     document.body.classList.add('overflow-hidden');
-
-    fetch(`/billing/soa/preview/${subscriberId}`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(res => res.text())
-    .then(html => {
-        content.innerHTML = html;
-    })
-    .catch(() => {
-        content.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Failed to load Statement of Account.</p>`;
-    });
 }
 
 function closeSoaModal() {
     const modal = document.getElementById('soaModal');
+    document.getElementById('soa-preview-frame').src = 'about:blank';
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     document.body.classList.remove('overflow-hidden');
@@ -690,39 +725,30 @@ function closeSoaModal() {
 
 function openReceiptModal(subscriberId, recordId) {
     const modal = document.getElementById('receiptModal');
-    const content = document.getElementById('receipt-modal-content');
-
-    content.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
-            <svg class="animate-spin h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Loading Receipt...</span>
-        </div>
-    `;
+    document.getElementById('receipt-preview-frame').src = `/billing/receipt/preview/${recordId}`;
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     document.body.classList.add('overflow-hidden');
-
-    fetch(`/billing/receipt/preview/${recordId}`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(res => res.text())
-    .then(html => {
-        content.innerHTML = html;
-    })
-    .catch(() => {
-        content.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Failed to load Receipt.</p>`;
-    });
 }
 
 function closeReceiptModal() {
     const modal = document.getElementById('receiptModal');
+    document.getElementById('receipt-preview-frame').src = 'about:blank';
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     document.body.classList.remove('overflow-hidden');
+}
+
+function printPreviewFrame(frameId) {
+    const previewFrame = document.getElementById(frameId);
+    if (!previewFrame.contentWindow || previewFrame.contentDocument?.readyState !== 'complete') {
+        alert('The preview is still loading. Please try again.');
+        return;
+    }
+
+    previewFrame.contentWindow.focus();
+    previewFrame.contentWindow.print();
 }
 
 document.addEventListener('keydown', function(event) {

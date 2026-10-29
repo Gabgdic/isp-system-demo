@@ -45,6 +45,10 @@ Route::middleware('auth')->group(function () {
         ->name('billing.soa.download');
     Route::get('/billing/receipt/preview/{billingRecord}', [BillingController::class, 'previewReceipt'])
         ->name('billing.receipt.preview');
+    Route::get('/billing/payment-receipt/preview/{paymentSubmission}', [BillingController::class, 'previewPaymentReceipt'])
+        ->name('billing.payment-receipt.preview');
+    Route::post('/billing/manual-payments', [BillingController::class, 'recordManualPayments'])
+        ->name('billing.manual-payments.store');
 
     Route::post('/billing/payment/approve/{id}', [BillingController::class, 'approve'])
         ->name('billing.payment.approve');
@@ -60,7 +64,7 @@ Route::middleware('auth')->group(function () {
     // Manual Trigger Route for Monthly Billing & Status Recalculation
     Route::post('/billing/generate-monthly', function () {
         Artisan::call('billing:generate-monthly');
-        return back()->with('success', 'Monthly billing generated and subscriber statuses updated successfully!');
+        return back()->with('success', 'Subscribers due today have been billed and subscriber statuses updated.');
     })->name('billing.generate.monthly');
 
     // Reports

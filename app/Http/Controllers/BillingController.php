@@ -9,6 +9,8 @@ use App\Models\Subscriber;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class BillingController extends Controller
 {
@@ -54,12 +56,23 @@ class BillingController extends Controller
             ->latest()
             ->get();
 
+        $manualPaymentSubscribers = Subscriber::query()
+            ->whereHas('billingRecords', function ($query) {
+                $query->whereIn('status', ['unpaid', 'overdue']);
+            })
+            ->with(['billingRecords' => function ($query) {
+                $query->whereIn('status', ['unpaid', 'overdue']);
+            }])
+            ->orderBy('full_name')
+            ->get();
+
         // Subscription Plans
         $plans = SubscriptionPlan::latest()->get();
 
         return view('admin.billing', compact(
             'pendingPayments',
             'billingRecords',
+            'manualPaymentSubscribers',
             'plans',
             'search'
         ));
@@ -101,8 +114,7 @@ class BillingController extends Controller
         $totalOutstanding = $unpaidBills->sum('amount');
         $systemSettings = SystemSetting::first();
 
-        // Point to resources/views/reports/soa.blade.php
-        return view('reports.soa', compact(
+        return view('admin.partials.soa_content', compact(
             'subscriber',
             'unpaidBills',
             'totalOutstanding',
@@ -119,6 +131,104 @@ class BillingController extends Controller
         ]);
 
         return view('admin.partials.receipt_preview', compact('billingRecord'));
+    }
+
+    public function previewPaymentReceipt(PaymentSubmission $paymentSubmission)
+    {
+        abort_unless($paymentSubmission->status === 'approved', 404);
+
+        $paymentSubmission->load([
+            'subscriber',
+            'billingRecord',
+            'billingAllocations.billingRecord',
+        ]);
+
+        $receiptItems = $paymentSubmission->billingAllocations
+            ->filter(fn ($allocation) => $allocation->billingRecord?->status === 'paid')
+            ->map(fn ($allocation) => (object) [
+                'bill' => $allocation->billingRecord,
+                'amount' => (float) $allocation->amount_applied,
+            ])
+            ->values();
+
+        if ($receiptItems->isEmpty() && $paymentSubmission->billingRecord?->status === 'paid') {
+            $receiptItems->push((object) [
+                'bill' => $paymentSubmission->billingRecord,
+                'amount' => (float) $paymentSubmission->billingRecord->amount,
+            ]);
+        }
+
+        abort_if($receiptItems->isEmpty(), 404);
+
+        $billingRecord = $receiptItems->first()->bill;
+        $systemSettings = SystemSetting::first();
+
+        return view('admin.partials.receipt_preview', compact(
+            'billingRecord',
+            'paymentSubmission',
+            'receiptItems',
+            'systemSettings'
+        ));
+    }
+
+    public function recordManualPayments(Request $request)
+    {
+        $validated = $request->validate([
+            'subscriber_ids' => 'required|array|min:1',
+            'subscriber_ids.*' => 'required|integer|distinct|exists:subscribers,id',
+        ]);
+
+        $paymentsRecorded = DB::transaction(function () use ($validated) {
+            $billsBySubscriber = BillingRecord::query()
+                ->whereIn('subscriber_id', $validated['subscriber_ids'])
+                ->whereIn('status', ['unpaid', 'overdue'])
+                ->orderBy('subscriber_id')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->groupBy('subscriber_id');
+
+            foreach ($validated['subscriber_ids'] as $subscriberId) {
+                if (!isset($billsBySubscriber[$subscriberId])) {
+                    throw ValidationException::withMessages([
+                        'subscriber_ids' => 'One or more selected subscribers no longer have an outstanding balance. Refresh and try again.',
+                    ]);
+                }
+            }
+
+            foreach ($billsBySubscriber as $subscriberId => $bills) {
+                $paidAt = now();
+                $amountPaid = $bills->sum(fn ($bill) => (float) $bill->amount);
+                $payment = PaymentSubmission::create([
+                    'billing_record_id' => null,
+                    'subscriber_id' => $subscriberId,
+                    'amount_paid' => $amountPaid,
+                    'reference_number' => 'ADMIN-' . $subscriberId . '-' . Str::upper(Str::random(8)),
+                    'payment_screenshot' => null,
+                    'status' => 'approved',
+                    'admin_note' => 'Outstanding balance manually recorded by admin.',
+                    'reviewed_at' => $paidAt,
+                ]);
+
+                foreach ($bills as $bill) {
+                    $bill->update([
+                        'status' => 'paid',
+                        'paid_at' => $paidAt,
+                    ]);
+
+                    $payment->billingAllocations()->create([
+                        'billing_record_id' => $bill->id,
+                        'amount_applied' => $bill->amount,
+                    ]);
+                }
+
+                Subscriber::findOrFail($subscriberId)->syncOverdueStatus();
+            }
+
+            return $billsBySubscriber->count();
+        });
+
+        return back()->with('success', "Manual payments recorded for {$paymentsRecorded} subscriber(s).");
     }
 
     // Approve Payment

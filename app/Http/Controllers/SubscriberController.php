@@ -12,10 +12,36 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class SubscriberController extends Controller
 {
+    private const BARANGAYS_BY_MUNICIPALITY = [
+        'Bontoc' => [
+            'Banahao', 'Baugo', 'Beniton', 'Buenavista', 'Bunga', 'Casao', 'Catmon',
+            'Catoogan', 'Cawayanan', 'Dao', 'Divisoria', 'Esperanza', 'Guinsangaan',
+            'Hibagwan', 'Hilaan', 'Himakilo', 'Hitawos', 'Lanao', 'Lawgawan',
+            'Mahayahay', 'Malbago', 'Mauylab', 'Paku', 'Pamahawan', 'Pamigsian',
+            'Pangi', 'Poblacion', 'Sampongon', 'San Vicente', 'Santa Cruz', 'Taa',
+            'Talisay', 'Taytagan', 'Tuburan', 'Union', 'Olisihan', 'Anahao',
+            'Pong-on', 'San Ramon', 'Santo Niño',
+        ],
+        'Sogod' => [
+            'Benit', 'Buac Daku', 'Buac Gamay', 'Cabadbaran', 'Concepcion',
+            'Consolacion', 'Dagsa', 'Hibod-hibod', 'Hindangan', 'Hipantag', 'Javier',
+            'Kahupian', 'Kanangkaan', 'Kauswagan', 'La Purisima Concepcion', 'Libas',
+            'Lum-an', 'Mabicay', 'Mac', 'Magatas', 'Mahayahay', 'Malinao',
+            'Maria Plana', 'Milagroso', 'Pancho Villa', 'Pandan', 'Zone I (Pob.)',
+            'Zone II (Pob.)', 'Zone III (Pob.)', 'Zone IV (Pob.)', 'Zone V (Pob.)',
+            'Rizal', 'Salvacion', 'San Francisco Mabuhay', 'San Isidro', 'San Jose',
+            'San Juan', 'San Miguel', 'San Pedro', 'San Roque', 'San Vicente',
+            'Santa Maria', 'Suba', 'Tampoong', 'Olisihan',
+        ],
+    ];
+
+    private const SUFFIXES = ['N/A', 'Jr.', 'Sr.', 'II', 'III', 'IV'];
+
     /**
      * Display a listing of the subscribers.
      */
@@ -42,7 +68,7 @@ class SubscriberController extends Controller
                 $query->where('full_name', 'like', "%{$search}%")
                     ->orWhere('username', 'like', "%{$search}%")
                     ->orWhere('phone_number', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('facebook_name', 'like', "%{$search}%")
                     ->orWhere('plan_name', 'like', "%{$search}%")
                     ->orWhere('status', 'like', "%{$search}%")
                     ->orWhere('monthly_fee', 'like', "%{$search}%");
@@ -56,6 +82,8 @@ class SubscriberController extends Controller
         }
 
         $plans = SubscriptionPlan::all();
+        $barangaysByMunicipality = self::BARANGAYS_BY_MUNICIPALITY;
+        $suffixes = self::SUFFIXES;
 
         $totalSubscribers = Subscriber::count();
         $activeSubscribers = Subscriber::where('status', 'active')->count();
@@ -65,6 +93,8 @@ class SubscriberController extends Controller
         return view('admin.subscriber', compact(
             'subscribers',
             'plans',
+            'barangaysByMunicipality',
+            'suffixes',
             'totalSubscribers',
             'activeSubscribers',
             'inactiveSubscribers',
@@ -80,7 +110,10 @@ class SubscriberController extends Controller
     {
         $request->validate([
             'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'full_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:80',
+            'middle_name' => 'nullable|string|max:80',
+            'surname' => 'required|string|max:80',
+            'suffix' => ['required', Rule::in(self::SUFFIXES)],
             'username' => 'required|string|max:255|unique:subscribers,username',
             'password' => [
                 'required',
@@ -90,10 +123,15 @@ class SubscriberController extends Controller
                     ->numbers()
                     ->symbols()
             ],
-            'email' => 'nullable|email|max:255|unique:subscribers,email',
+            'facebook_name' => 'nullable|string|max:255',
             'phone_number' => 'required|string|max:20',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
-            'address' => 'required|string|max:500',
+            'municipality' => ['required', Rule::in(array_keys(self::BARANGAYS_BY_MUNICIPALITY))],
+            'province' => ['required', Rule::in(['Southern Leyte'])],
+            'barangay' => [
+                'required',
+                Rule::in(self::BARANGAYS_BY_MUNICIPALITY[$request->input('municipality')] ?? []),
+            ],
         ]);
 
         $plan = SubscriptionPlan::findOrFail($request->subscription_plan_id);
@@ -105,15 +143,22 @@ class SubscriberController extends Controller
 
         Subscriber::create([
             'profile_photo' => $photoPath,
-            'full_name' => $request->full_name,
+            'first_name' => trim($request->first_name),
+            'middle_name' => $request->filled('middle_name') ? trim($request->middle_name) : null,
+            'surname' => trim($request->surname),
+            'suffix' => $request->suffix,
+            'full_name' => $this->formatFullName($request),
             'username' => $request->username,
             'password' => Hash::make($request->password),
-            'email' => $request->email,
+            'facebook_name' => $request->facebook_name,
             'phone_number' => $request->phone_number,
             'subscription_plan_id' => $plan->id,
             'plan_name' => $plan->plan_name,
             'monthly_fee' => $plan->price,
-            'address' => $request->address,
+            'barangay' => $request->barangay,
+            'municipality' => $request->municipality,
+            'province' => $request->province,
+            'address' => $this->formatAddress($request),
             'status' => 'active',
         ]);
 
@@ -129,7 +174,10 @@ class SubscriberController extends Controller
 
         $request->validate([
             'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'full_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:80',
+            'middle_name' => 'nullable|string|max:80',
+            'surname' => 'required|string|max:80',
+            'suffix' => ['required', Rule::in(self::SUFFIXES)],
             'username' => 'required|string|max:255|unique:subscribers,username,' . $subscriber->id,
             'password' => [
                 'nullable',
@@ -139,10 +187,15 @@ class SubscriberController extends Controller
                     ->numbers()
                     ->symbols()
             ],
-            'email' => 'nullable|email|max:255|unique:subscribers,email,' . $subscriber->id,
+            'facebook_name' => 'nullable|string|max:255',
             'phone_number' => 'required|string|max:20',
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
-            'address' => 'required|string|max:500',
+            'municipality' => ['required', Rule::in(array_keys(self::BARANGAYS_BY_MUNICIPALITY))],
+            'province' => ['required', Rule::in(['Southern Leyte'])],
+            'barangay' => [
+                'required',
+                Rule::in(self::BARANGAYS_BY_MUNICIPALITY[$request->input('municipality')] ?? []),
+            ],
         ]);
 
         $plan = SubscriptionPlan::findOrFail($request->subscription_plan_id);
@@ -154,14 +207,21 @@ class SubscriberController extends Controller
             $subscriber->profile_photo = $request->file('profile_photo')->store('subscribers', 'public');
         }
 
-        $subscriber->full_name = $request->full_name;
+        $subscriber->first_name = trim($request->first_name);
+        $subscriber->middle_name = $request->filled('middle_name') ? trim($request->middle_name) : null;
+        $subscriber->surname = trim($request->surname);
+        $subscriber->suffix = $request->suffix;
+        $subscriber->full_name = $this->formatFullName($request);
         $subscriber->username = $request->username;
-        $subscriber->email = $request->email;
+        $subscriber->facebook_name = $request->facebook_name;
         $subscriber->phone_number = $request->phone_number;
         $subscriber->subscription_plan_id = $plan->id; // Assign to subscription_plan_id, NOT subscriber->id
         $subscriber->plan_name = $plan->plan_name;
         $subscriber->monthly_fee = $plan->price;
-        $subscriber->address = $request->address;
+        $subscriber->barangay = $request->barangay;
+        $subscriber->municipality = $request->municipality;
+        $subscriber->province = $request->province;
+        $subscriber->address = $this->formatAddress($request);
 
         if ($request->filled('password')) {
             $subscriber->password = Hash::make($request->password);
@@ -170,6 +230,25 @@ class SubscriberController extends Controller
         $subscriber->save();
 
         return redirect()->route('subscriber')->with('success', 'Subscriber updated successfully.');
+    }
+
+    private function formatFullName(Request $request): string
+    {
+        return collect([
+            trim($request->first_name),
+            $request->filled('middle_name') ? trim($request->middle_name) : null,
+            trim($request->surname),
+            $request->suffix !== 'N/A' ? $request->suffix : null,
+        ])->filter()->implode(' ');
+    }
+
+    private function formatAddress(Request $request): string
+    {
+        return implode(', ', [
+            $request->barangay,
+            $request->municipality,
+            $request->province,
+        ]);
     }
 
     public function recordPastDuePayment($id)

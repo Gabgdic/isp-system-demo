@@ -44,6 +44,23 @@ html.dark .bg-slate-900 {
     background-color: #030712 !important;
 }
 
+html.dark .portal-loyalty-card {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+html.dark .portal-loyalty-label {
+    color: #a5b4fc !important;
+}
+
+html.dark .portal-loyalty-value {
+    color: #e0e7ff !important;
+}
+
+html.dark .portal-loyalty-message {
+    color: #c7d2fe !important;
+}
+
 html.dark .text-slate-900,
 html.dark .text-slate-800,
 html.dark .text-slate-700 {

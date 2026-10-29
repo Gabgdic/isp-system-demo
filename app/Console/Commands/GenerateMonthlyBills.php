@@ -11,7 +11,7 @@ class GenerateMonthlyBills extends Command
 {
     protected $signature = 'billing:generate-monthly';
 
-    protected $description = 'Generate monthly billing records for active and inactive subscribers';
+    protected $description = 'Generate monthly billing records on each subscriber anniversary';
 
     public function handle()
     {
@@ -19,34 +19,59 @@ class GenerateMonthlyBills extends Command
         
         $subscribers = Subscriber::all();
         $count = 0;
+        $updatedDueDates = 0;
 
         foreach ($subscribers as $subscriber) {
+            $signupDay = $subscriber->created_at->day;
+
+            foreach ($subscriber->billingRecords as $existingRecord) {
+                $billingMonth = Carbon::create(
+                    $existingRecord->billing_year,
+                    $existingRecord->billing_month,
+                    1
+                );
+                $recordDueDate = $billingMonth
+                    ->copy()
+                    ->day(min($signupDay, $billingMonth->daysInMonth))
+                    ->startOfDay();
+
+                if ($existingRecord->due_date?->toDateString() !== $recordDueDate->toDateString()) {
+                    $existingRecord->update(['due_date' => $recordDueDate]);
+                    $updatedDueDates++;
+                }
+            }
+
             $subscriber->syncOverdueStatus();
 
-            if (!in_array($subscriber->status, ['active', 'inactive'], true)) {
+            $billingDay = min($signupDay, $now->daysInMonth);
+            $dueDate = $now->copy()->day($billingDay)->startOfDay();
+            $record = BillingRecord::firstOrNew([
+                'subscriber_id' => $subscriber->id,
+                'billing_month' => $now->month,
+                'billing_year'  => $now->year,
+            ]);
+
+            if ($record->exists) {
                 continue;
             }
 
-            $record = BillingRecord::firstOrCreate(
-                [
-                    'subscriber_id' => $subscriber->id,
-                    'billing_month' => $now->month,
-                    'billing_year'  => $now->year,
-                ],
-                [
-                    'amount'   => $subscriber->monthly_fee,
-                    'due_date' => $now->copy()->endOfMonth(),
-                    'status'   => 'unpaid',
-                    'paid_at'  => null,
-                ]
-            );
-
-            if ($record->wasRecentlyCreated) {
-                $count++;
+            if (
+                !in_array($subscriber->status, ['active', 'inactive'], true)
+                || $now->day !== $billingDay
+            ) {
+                continue;
             }
+
+            $record->fill([
+                'amount'   => $subscriber->monthly_fee,
+                'due_date' => $dueDate,
+                'status'   => 'unpaid',
+                'paid_at'  => null,
+            ])->save();
+            $count++;
         }
 
-        $this->info("Generated {$count} new billing records.");
+        $this->info("Generated {$count} new billing records and corrected {$updatedDueDates} existing due dates.");
         return Command::SUCCESS;
     }
 }

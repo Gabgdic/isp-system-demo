@@ -35,7 +35,7 @@
                     </td>
                     <td class="px-4 py-3">
                         <p class="text-slate-700">{{ $subscriber->phone_number ?? 'No phone' }}</p>
-                        <p class="text-xs text-slate-400">{{ $subscriber->email ?? 'No email' }}</p>
+                        <p class="text-xs text-slate-400">{{ $subscriber->facebook_name ?? 'No Facebook name' }}</p>
                     </td>
                     <td class="px-4 py-3">{{ $subscriber->plan_name ?? 'No plan' }}</td>
                     <td class="px-4 py-3 font-semibold">₱{{ number_format($subscriber->monthly_fee ?? 0, 2) }}</td>
@@ -51,10 +51,17 @@
                                 onclick="openEditSubscriberModal(this)"
                                 data-id="{{ $subscriber->id }}"
                                 data-full-name="{{ $subscriber->full_name }}"
+                                data-first-name="{{ $subscriber->first_name }}"
+                                data-middle-name="{{ $subscriber->middle_name }}"
+                                data-surname="{{ $subscriber->surname }}"
+                                data-suffix="{{ $subscriber->suffix }}"
                                 data-username="{{ $subscriber->username }}"
-                                data-email="{{ $subscriber->email }}"
+                                data-facebook-name="{{ $subscriber->facebook_name }}"
                                 data-phone-number="{{ $subscriber->phone_number }}"
                                 data-address="{{ $subscriber->address }}"
+                                data-barangay="{{ $subscriber->barangay }}"
+                                data-municipality="{{ $subscriber->municipality }}"
+                                data-province="{{ $subscriber->province }}"
                                 data-subscription-plan-id="{{ $subscriber->subscription_plan_id }}"
                                 data-plan-name="{{ $subscriber->plan_name }}"
                                 data-monthly-fee="{{ $subscriber->monthly_fee }}"
@@ -108,6 +115,6 @@
 
 @if($subscribers->hasPages())
     <div class="px-4 py-3 border-t border-slate-200">
-        {{ $subscribers->links() }}
+        {{ $subscribers->links('vendor.pagination.compact') }}
     </div>
 @endif
