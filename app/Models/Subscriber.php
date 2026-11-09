@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class Subscriber extends Model
 {
@@ -31,6 +32,7 @@ class Subscriber extends Model
 
     protected $casts = [
         'monthly_fee' => 'decimal:2',
+        'disconnected_at' => 'datetime',
     ];
 
     /**
@@ -49,6 +51,17 @@ class Subscriber extends Model
     public function paymentSubmissions(): HasMany
     {
         return $this->hasMany(PaymentSubmission::class);
+    }
+
+    public function disconnections(): HasMany
+    {
+        return $this->hasMany(SubscriberDisconnection::class)
+            ->orderByDesc('disconnected_at');
+    }
+
+    public function officeVisitRequests(): HasMany
+    {
+        return $this->hasMany(SubscriberOfficeVisitRequest::class);
     }
 
     public function syncOverdueStatus(): string
@@ -72,8 +85,20 @@ class Subscriber extends Model
         }
 
         if ($this->status !== $newStatus) {
-            $this->status = $newStatus;
-            $this->save();
+            if ($newStatus === 'disconnected') {
+                $disconnectedAt = now();
+                DB::transaction(function () use ($disconnectedAt): void {
+                    $this->disconnected_at = $disconnectedAt;
+                    $this->status = 'disconnected';
+                    $this->save();
+                    $this->disconnections()->create([
+                        'disconnected_at' => $disconnectedAt,
+                    ]);
+                });
+            } else {
+                $this->status = $newStatus;
+                $this->save();
+            }
         }
 
         return $newStatus;

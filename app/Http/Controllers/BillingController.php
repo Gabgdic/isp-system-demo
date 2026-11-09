@@ -7,8 +7,10 @@ use App\Models\PaymentSubmission;
 use App\Models\SubscriptionPlan;
 use App\Models\Subscriber;
 use App\Models\SystemSetting;
+use App\Services\PhilSmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -16,21 +18,47 @@ class BillingController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => 'nullable|string|max:255',
+            'status' => ['nullable', Rule::in(['paid', 'unpaid', 'overdue'])],
+            'billing_period' => ['nullable', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+        ]);
+
         // Billing Records
         $search = trim($request->input('search', ''));
+        $status = $request->input('status');
+        $billingPeriod = $request->input('billing_period');
+        $billingMonths = BillingRecord::query()
+            ->select('billing_year', 'billing_month')
+            ->distinct()
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->get()
+            ->mapWithKeys(fn (BillingRecord $record) => [
+                sprintf('%04d-%02d', $record->billing_year, $record->billing_month) => \Carbon\Carbon::create(
+                    $record->billing_year,
+                    $record->billing_month,
+                    1
+                )->format('M Y'),
+            ]);
 
         $billingRecordsQuery = BillingRecord::with('subscriber');
 
+        if ($status) {
+            $billingRecordsQuery->where('status', $status);
+        }
+
+        if ($billingPeriod) {
+            [$billingYear, $billingMonth] = explode('-', $billingPeriod);
+            $billingRecordsQuery
+                ->where('billing_year', (int) $billingYear)
+                ->where('billing_month', (int) $billingMonth);
+        }
+
         if ($search !== '') {
-            $billingRecordsQuery->where(function ($query) use ($search) {
-                $query->whereHas('subscriber', function ($subscriberQuery) use ($search) {
-                    $subscriberQuery->where('full_name', 'like', "%{$search}%")
-                        ->orWhere('username', 'like', "%{$search}%");
-                })
-                    ->orWhere('status', 'like', "%{$search}%")
-                    ->orWhere('billing_year', 'like', "%{$search}%")
-                    ->orWhere('billing_month', 'like', "%{$search}%")
-                    ->orWhere('amount', 'like', "%{$search}%");
+            $billingRecordsQuery->whereHas('subscriber', function ($subscriberQuery) use ($search) {
+                $subscriberQuery->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%");
             });
         }
 
@@ -74,7 +102,10 @@ class BillingController extends Controller
             'billingRecords',
             'manualPaymentSubscribers',
             'plans',
-            'search'
+            'search',
+            'status',
+            'billingPeriod',
+            'billingMonths'
         ));
     }
 
@@ -171,14 +202,14 @@ class BillingController extends Controller
         ));
     }
 
-    public function recordManualPayments(Request $request)
+    public function recordManualPayments(Request $request, PhilSmsService $smsService)
     {
         $validated = $request->validate([
             'subscriber_ids' => 'required|array|min:1',
             'subscriber_ids.*' => 'required|integer|distinct|exists:subscribers,id',
         ]);
 
-        $paymentsRecorded = DB::transaction(function () use ($validated) {
+        $payments = DB::transaction(function () use ($validated) {
             $billsBySubscriber = BillingRecord::query()
                 ->whereIn('subscriber_id', $validated['subscriber_ids'])
                 ->whereIn('status', ['unpaid', 'overdue'])
@@ -196,6 +227,7 @@ class BillingController extends Controller
                 }
             }
 
+            $payments = [];
             foreach ($billsBySubscriber as $subscriberId => $bills) {
                 $paidAt = now();
                 $amountPaid = $bills->sum(fn ($bill) => (float) $bill->amount);
@@ -209,6 +241,7 @@ class BillingController extends Controller
                     'admin_note' => 'Outstanding balance manually recorded by admin.',
                     'reviewed_at' => $paidAt,
                 ]);
+                $payments[] = $payment;
 
                 foreach ($bills as $bill) {
                     $bill->update([
@@ -225,14 +258,18 @@ class BillingController extends Controller
                 Subscriber::findOrFail($subscriberId)->syncOverdueStatus();
             }
 
-            return $billsBySubscriber->count();
+            return $payments;
         });
 
-        return back()->with('success', "Manual payments recorded for {$paymentsRecorded} subscriber(s).");
+        foreach ($payments as $payment) {
+            $smsService->sendPaymentApproved($payment);
+        }
+
+        return back()->with('success', 'Manual payments recorded for ' . count($payments) . ' subscriber(s).');
     }
 
     // Approve Payment
-    public function approve($id)
+    public function approve($id, PhilSmsService $smsService)
     {
         $payment = PaymentSubmission::with([
             'billingRecord',
@@ -274,15 +311,33 @@ class BillingController extends Controller
             }
         });
 
+        $smsService->sendPaymentApproved($payment);
+
         return back()->with('success', 'Payment approved successfully.');
     }
 
     // Reject Payment
-    public function reject(Request $request, $id)
+    public function reject(Request $request, $id, PhilSmsService $smsService)
     {
         $request->validate([
-            'admin_note' => 'nullable|string|max:1000',
+            'reject_reason' => [
+                'required',
+                Rule::in([
+                    'reference_mismatch',
+                    'blurry_image',
+                    'payment_not_received',
+                    'other',
+                ]),
+            ],
+            'other_reason' => 'required_if:reject_reason,other|nullable|string|max:1000',
         ]);
+
+        $adminNote = match ($request->reject_reason) {
+            'reference_mismatch' => 'Reference number does not match.',
+            'blurry_image' => 'Image is blurry or unreadable.',
+            'payment_not_received' => 'Payment was not received.',
+            'other' => 'Other: ' . trim($request->other_reason),
+        };
 
         $payment = PaymentSubmission::with([
             'billingRecord',
@@ -294,7 +349,7 @@ class BillingController extends Controller
             return back()->with('error', 'This payment has already been reviewed.');
         }
 
-        DB::transaction(function () use ($payment, $request) {
+        DB::transaction(function () use ($payment, $adminNote) {
             $resetBillStatus = function ($bill) {
                 if (!$bill) return;
 
@@ -323,7 +378,7 @@ class BillingController extends Controller
 
             $payment->update([
                 'status' => 'rejected',
-                'admin_note' => $request->admin_note,
+                'admin_note' => $adminNote,
                 'reviewed_at' => now(),
             ]);
 
@@ -332,6 +387,8 @@ class BillingController extends Controller
                 $payment->subscriber->syncOverdueStatus();
             }
         });
+
+        $smsService->sendPaymentRejected($payment);
 
         return back()->with('success', 'Payment rejected.');
     }

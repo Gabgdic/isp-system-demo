@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingRecord;
 use App\Models\PaymentSubmission;
+use App\Models\SmsLog;
+use App\Models\SubscriberOfficeVisitRequest;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -18,19 +20,12 @@ class ReportsController extends Controller
 
         $currentMonth = now()->startOfMonth();
         $period = $request->input('period', 'overall');
-        $selectedMonth = null;
-
-        if ($period !== 'overall') {
-            if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
-                $period = 'overall';
-            } else {
-                $selectedMonth = Carbon::createFromFormat('!Y-m', $period);
-
-                if ($selectedMonth->greaterThan($currentMonth)) {
-                    $period = 'overall';
-                    $selectedMonth = null;
-                }
-            }
+        if (!is_string($period)) {
+            $period = 'overall';
+        }
+        $selectedMonth = $this->resolveSelectedMonth($period);
+        if ($period !== 'overall' && $selectedMonth === null) {
+            $period = 'overall';
         }
 
         $startMonth = $currentMonth->copy();
@@ -59,6 +54,20 @@ class ReportsController extends Controller
             }
         }
 
+        $firstSmsLogCreatedAt = SmsLog::min('created_at');
+        $firstSmsLogSentAt = SmsLog::whereNotNull('sent_at')->min('sent_at');
+        foreach ([$firstSmsLogCreatedAt, $firstSmsLogSentAt] as $firstSmsLogDate) {
+            if (!$firstSmsLogDate) {
+                continue;
+            }
+
+            $smsLogStart = Carbon::parse($firstSmsLogDate)->startOfMonth();
+
+            if ($smsLogStart->lessThan($startMonth)) {
+                $startMonth = $smsLogStart;
+            }
+        }
+
         $monthOptions = [];
         $monthCursor = $startMonth->copy();
         while ($monthCursor->lessThanOrEqualTo($currentMonth)) {
@@ -80,112 +89,15 @@ class ReportsController extends Controller
                 ->where('billing_year', $selectedMonth->year)
                 ->where('billing_month', $selectedMonth->month);
         }
+        $smsLogs = $this->smsLogsForPeriod($selectedMonth);
+        $officeVisitRequests = SubscriberOfficeVisitRequest::with('subscriber')
+            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+            ->orderByDesc('created_at')
+            ->get();
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
 
         $search = trim($request->input('search', ''));
-        $paidPaymentRows = PaymentSubmission::with([
-            'subscriber',
-            'billingRecord',
-            'billingAllocations.billingRecord',
-        ])
-            ->where('status', 'approved')
-            ->get()
-            ->map(function (PaymentSubmission $payment) use ($selectedMonth, $search) {
-                $bills = $payment->billingAllocations
-                    ->filter(fn ($allocation) => $allocation->billingRecord?->status === 'paid')
-                    ->map(fn ($allocation) => (object) [
-                        'bill' => $allocation->billingRecord,
-                        'amount' => (float) $allocation->amount_applied,
-                    ])
-                    ->values();
-
-                if ($bills->isEmpty() && $payment->billingRecord?->status === 'paid') {
-                    $bills->push((object) [
-                        'bill' => $payment->billingRecord,
-                        'amount' => (float) $payment->billingRecord->amount,
-                    ]);
-                }
-
-                if ($bills->isEmpty()) {
-                    return null;
-                }
-
-                if ($selectedMonth && !$bills->contains(fn ($item) =>
-                    (int) $item->bill->billing_year === $selectedMonth->year
-                    && (int) $item->bill->billing_month === $selectedMonth->month
-                )) {
-                    return null;
-                }
-
-                $periods = $bills->map(fn ($item) => Carbon::create(
-                    $item->bill->billing_year,
-                    $item->bill->billing_month,
-                    1
-                )->format('M Y'))->unique()->implode(', ');
-                $subscriber = $payment->subscriber;
-                $searchable = implode(' ', [
-                    $subscriber?->full_name,
-                    $subscriber?->username,
-                    $payment->reference_number,
-                    number_format((float) $payment->amount_paid, 2, '.', ''),
-                    $periods,
-                ]);
-
-                if ($search !== '' && stripos($searchable, $search) === false) {
-                    return null;
-                }
-
-                return (object) [
-                    'payment' => $payment,
-                    'subscriber' => $subscriber,
-                    'bills' => $bills,
-                    'amount' => (float) $payment->amount_paid,
-                    'paid_at' => $payment->reviewed_at
-                        ?? $bills->map(fn ($item) => $item->bill->paid_at)->filter()->max(),
-                    'periods' => $periods,
-                ];
-            })
-            ->filter()
-            ->values();
-
-        $paidBillRows = BillingRecord::with('subscriber')
-            ->where('status', 'paid')
-            ->whereDoesntHave('paymentAllocations.paymentSubmission', fn ($query) => $query->where('status', 'approved'))
-            ->whereDoesntHave('paymentSubmissions', fn ($query) => $query->where('status', 'approved'))
-            ->get()
-            ->filter(function (BillingRecord $bill) use ($selectedMonth, $search) {
-                if ($selectedMonth
-                    && ((int) $bill->billing_year !== $selectedMonth->year
-                        || (int) $bill->billing_month !== $selectedMonth->month)
-                ) {
-                    return false;
-                }
-
-                $period = Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y');
-                $searchable = implode(' ', [
-                    $bill->subscriber?->full_name,
-                    $bill->subscriber?->username,
-                    $bill->amount,
-                    $period,
-                ]);
-
-                return $search === '' || stripos($searchable, $search) !== false;
-            })
-            ->map(function (BillingRecord $bill) {
-                return (object) [
-                    'payment' => null,
-                    'subscriber' => $bill->subscriber,
-                    'bills' => collect([(object) ['bill' => $bill, 'amount' => (float) $bill->amount]]),
-                    'amount' => (float) $bill->amount,
-                    'paid_at' => $bill->paid_at,
-                    'periods' => Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y'),
-                    'legacy_bill' => $bill,
-                ];
-            });
-
-        $paidBillRows = $paidPaymentRows
-            ->concat($paidBillRows)
-            ->sortByDesc(fn ($row) => $row->paid_at?->timestamp ?? 0)
-            ->values();
+        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $search);
 
         $perPage = 10;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
@@ -252,9 +164,187 @@ class ReportsController extends Controller
             'paidBillsCount',
             'pendingBills',
             'unpaidBills',
+            'smsLogs',
+            'officeVisitRequests',
+            'reportPeriodLabel',
             'trendLabels',
             'trendRevenue',
             'trendOutstanding'
         ));
+    }
+
+    public function printSmsLogs(Request $request)
+    {
+        $period = $request->input('period', 'overall');
+        if (!is_string($period)) {
+            $period = 'overall';
+        }
+        $selectedMonth = $this->resolveSelectedMonth($period);
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
+        $smsLogs = $this->smsLogsForPeriod($selectedMonth);
+
+        return view('admin.partials.sms_logs_print', compact('smsLogs', 'reportPeriodLabel'));
+    }
+
+    public function printPaidBills(Request $request)
+    {
+        $request->validate([
+            'search' => 'nullable|string|max:255',
+        ]);
+
+        $period = $request->input('period', 'overall');
+        if (!is_string($period)) {
+            $period = 'overall';
+        }
+
+        $selectedMonth = $this->resolveSelectedMonth($period);
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
+        $search = trim($request->input('search', ''));
+        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $search);
+
+        return view('admin.partials.paid_bills_print', compact('paidBillRows', 'reportPeriodLabel'));
+    }
+
+    private function resolveSelectedMonth(string $period): ?Carbon
+    {
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
+            return null;
+        }
+
+        $selectedMonth = Carbon::createFromFormat('!Y-m', $period);
+
+        return $selectedMonth->greaterThan(now()->startOfMonth())
+            ? null
+            : $selectedMonth;
+    }
+
+    private function smsLogsForPeriod(?Carbon $selectedMonth)
+    {
+        $query = SmsLog::with('subscriber')
+            ->orderByDesc('sent_at')
+            ->orderByDesc('created_at');
+
+        if ($selectedMonth) {
+            $monthStart = $selectedMonth->copy()->startOfMonth();
+            $monthEnd = $selectedMonth->copy()->endOfMonth();
+
+            $query->where(function ($query) use ($monthStart, $monthEnd) {
+                $query->whereBetween('sent_at', [$monthStart, $monthEnd])
+                    ->orWhere(function ($query) use ($monthStart, $monthEnd) {
+                        $query->whereNull('sent_at')
+                            ->whereBetween('created_at', [$monthStart, $monthEnd]);
+                    });
+            });
+        }
+
+        return $query->get();
+    }
+
+    private function paidBillRowsForPeriod(?Carbon $selectedMonth, string $search)
+    {
+        $paidPaymentRows = PaymentSubmission::with([
+            'subscriber',
+            'billingRecord',
+            'billingAllocations.billingRecord',
+        ])
+            ->where('status', 'approved')
+            ->get()
+            ->map(function (PaymentSubmission $payment) use ($selectedMonth, $search) {
+                $bills = $payment->billingAllocations
+                    ->filter(fn ($allocation) => $allocation->billingRecord?->status === 'paid')
+                    ->map(fn ($allocation) => (object) [
+                        'bill' => $allocation->billingRecord,
+                        'amount' => (float) $allocation->amount_applied,
+                    ])
+                    ->values();
+
+                if ($bills->isEmpty() && $payment->billingRecord?->status === 'paid') {
+                    $bills->push((object) [
+                        'bill' => $payment->billingRecord,
+                        'amount' => (float) $payment->billingRecord->amount,
+                    ]);
+                }
+
+                if ($bills->isEmpty()) {
+                    return null;
+                }
+
+                if ($selectedMonth && !$bills->contains(fn ($item) =>
+                    (int) $item->bill->billing_year === $selectedMonth->year
+                    && (int) $item->bill->billing_month === $selectedMonth->month
+                )) {
+                    return null;
+                }
+
+                $periods = $bills->map(fn ($item) => Carbon::create(
+                    $item->bill->billing_year,
+                    $item->bill->billing_month,
+                    1
+                )->format('M Y'))->unique()->implode(', ');
+                $subscriber = $payment->subscriber;
+                $searchable = implode(' ', [
+                    $subscriber?->full_name,
+                    $subscriber?->username,
+                    $payment->reference_number,
+                    number_format((float) $payment->amount_paid, 2, '.', ''),
+                    $periods,
+                ]);
+
+                if ($search !== '' && stripos($searchable, $search) === false) {
+                    return null;
+                }
+
+                return (object) [
+                    'payment' => $payment,
+                    'subscriber' => $subscriber,
+                    'bills' => $bills,
+                    'amount' => (float) $payment->amount_paid,
+                    'paid_at' => $payment->reviewed_at
+                        ?? $bills->map(fn ($item) => $item->bill->paid_at)->filter()->max(),
+                    'periods' => $periods,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $legacyPaidRows = BillingRecord::with('subscriber')
+            ->where('status', 'paid')
+            ->whereDoesntHave('paymentAllocations.paymentSubmission', fn ($query) => $query->where('status', 'approved'))
+            ->whereDoesntHave('paymentSubmissions', fn ($query) => $query->where('status', 'approved'))
+            ->get()
+            ->filter(function (BillingRecord $bill) use ($selectedMonth, $search) {
+                if ($selectedMonth
+                    && ((int) $bill->billing_year !== $selectedMonth->year
+                        || (int) $bill->billing_month !== $selectedMonth->month)
+                ) {
+                    return false;
+                }
+
+                $period = Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y');
+                $searchable = implode(' ', [
+                    $bill->subscriber?->full_name,
+                    $bill->subscriber?->username,
+                    $bill->amount,
+                    $period,
+                ]);
+
+                return $search === '' || stripos($searchable, $search) !== false;
+            })
+            ->map(function (BillingRecord $bill) {
+                return (object) [
+                    'payment' => null,
+                    'subscriber' => $bill->subscriber,
+                    'bills' => collect([(object) ['bill' => $bill, 'amount' => (float) $bill->amount]]),
+                    'amount' => (float) $bill->amount,
+                    'paid_at' => $bill->paid_at,
+                    'periods' => Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('M Y'),
+                    'legacy_bill' => $bill,
+                ];
+            });
+
+        return $paidPaymentRows
+            ->concat($legacyPaidRows)
+            ->sortByDesc(fn ($row) => $row->paid_at?->timestamp ?? 0)
+            ->values();
     }
 }

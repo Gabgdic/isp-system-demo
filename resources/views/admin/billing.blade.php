@@ -15,30 +15,42 @@
             </p>
         </div>
 
-        <!-- Inline Alerts -->
-        @if(session('success'))
-            <div class="px-4 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
-                {{ session('success') }}
-            </div>
-        @endif
+        <div class="flex flex-col md:items-end gap-2">
+            <button
+                type="button"
+                onclick="openManualPaymentModal()"
+                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-md hover:bg-slate-800 hover:-translate-y-0.5 transition-all duration-200"
+            >
+                Record Manual Payment
+            </button>
 
-        @if(session('error'))
-            <div class="px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
-                {{ session('error') }}
-            </div>
-        @endif
+            <div class="flex flex-col gap-2 md:items-end">
+                <!-- Inline Alerts -->
+                @if(session('success'))
+                    <div class="px-4 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
+                        {{ session('success') }}
+                    </div>
+                @endif
 
-        @if($errors->any())
-            <div class="px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
-                <span class="font-bold">Errors:</span> {{ implode(', ', $errors->all()) }}
+                @if(session('error'))
+                    <div class="px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                        {{ session('error') }}
+                    </div>
+                @endif
+
+                @if($errors->any())
+                    <div class="px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                        <span class="font-bold">Errors:</span> {{ implode(', ', $errors->all()) }}
+                    </div>
+                @endif
             </div>
-        @endif
+        </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[300px]">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
         <!-- PAYMENT VERIFICATION -->
-        <div class="lg:col-span-7 bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
+        <div class="lg:col-span-7 min-h-[300px] bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col overflow-hidden">
 
             <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50 flex-shrink-0">
                 <div>
@@ -145,7 +157,7 @@
         </div>
 
         <!-- SUBSCRIPTION PLANS -->
-        <div class="lg:col-span-5 bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
+        <div class="lg:col-span-5 min-h-[300px] bg-slate-50 border border-slate-300 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50 flex-shrink-0">
                 <div>
                     <h2 class="text-base font-bold text-slate-900">Subscription Plans</h2>
@@ -230,20 +242,37 @@
                 <h2 class="text-base font-bold text-slate-900">Billing Records</h2>
                 <p class="text-xs text-slate-500">Track subscriber invoices, payment status, and statements.</p>
             </div>
-            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <button
-                    type="button"
-                    onclick="openManualPaymentModal()"
-                    class="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold whitespace-nowrap"
+            <div class="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-1 sm:flex-row sm:items-center sm:justify-end">
+                <div class="flex shrink-0 items-center gap-2">
+                    <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <input type="checkbox" name="billing-status-filter" value="paid" class="billing-status-filter rounded border-slate-300" {{ $status === 'paid' ? 'checked' : '' }}>
+                        Paid
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <input type="checkbox" name="billing-status-filter" value="unpaid" class="billing-status-filter rounded border-slate-300" {{ $status === 'unpaid' ? 'checked' : '' }}>
+                        Unpaid
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <input type="checkbox" name="billing-status-filter" value="overdue" class="billing-status-filter rounded border-slate-300" {{ $status === 'overdue' ? 'checked' : '' }}>
+                        Overdue
+                    </label>
+                </div>
+                <select
+                    id="billingPeriodFilter"
+                    aria-label="Filter billing records by month"
+                    class="form-input billing-period-filter"
                 >
-                    Record Manual Payment
-                </button>
-                <div class="relative w-full sm:w-72">
+                    <option value="">All months</option>
+                    @foreach($billingMonths as $monthValue => $monthLabel)
+                        <option value="{{ $monthValue }}" {{ $billingPeriod === $monthValue ? 'selected' : '' }}>{{ $monthLabel }}</option>
+                    @endforeach
+                </select>
+                <div class="relative w-full min-w-0 sm:w-64 sm:flex-none">
                     <input
                         type="text"
                         id="billingRecordsSearch"
                         value="{{ $search ?? '' }}"
-                        placeholder="Search subscriber, status, or period..."
+                        placeholder="Search name or username..."
                         class="form-input pr-10"
                         autocomplete="off"
                     >
@@ -446,8 +475,32 @@
                         <form method="POST" action="{{ route('billing.payment.reject', $payment->id) }}" class="space-y-3">
                             @csrf
                             <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Rejection Note</label>
-                                <textarea name="admin_note" rows="2" placeholder="Reason..." class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-slate-400 outline-none"></textarea>
+                                <label for="reject-reason-{{ $payment->id }}" class="block text-xs font-semibold text-slate-700 mb-1">Rejection Reason <span class="text-red-500">*</span></label>
+                                <select
+                                    id="reject-reason-{{ $payment->id }}"
+                                    name="reject_reason"
+                                    required
+                                    onchange="toggleOtherRejectionReason(this, {{ $payment->id }})"
+                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-slate-400 outline-none"
+                                >
+                                    <option value="">Select a reason</option>
+                                    <option value="reference_mismatch">Reference number does not match</option>
+                                    <option value="blurry_image">Image is blurry or unreadable</option>
+                                    <option value="payment_not_received">Payment was not received</option>
+                                    <option value="other">Other (please specify)</option>
+                                </select>
+                            </div>
+                            <div id="other-reason-wrapper-{{ $payment->id }}" class="hidden">
+                                <label for="other-reason-{{ $payment->id }}" class="block text-xs font-semibold text-slate-700 mb-1">Please specify <span class="text-red-500">*</span></label>
+                                <textarea
+                                    id="other-reason-{{ $payment->id }}"
+                                    name="other_reason"
+                                    rows="2"
+                                    maxlength="1000"
+                                    disabled
+                                    placeholder="Enter the reason..."
+                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-slate-400 outline-none"
+                                ></textarea>
                             </div>
                             <div class="flex gap-2">
                                 <button type="submit" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl font-semibold">Confirm</button>
@@ -535,6 +588,11 @@
     font-size: 13px;
 }
 
+.billing-period-filter {
+    width: 7rem;
+    flex: 0 0 6rem;
+}
+
 .form-input:focus {
     border-color: #0f172a;
     box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
@@ -569,17 +627,36 @@ document.addEventListener('input', function(e) {
 
     clearTimeout(billingSearchTimeout);
     billingSearchTimeout = setTimeout(() => {
-        const url = new URL(@json(route('billing')), window.location.origin);
-        const search = searchInput.value.trim();
+        fetchBillingRecords(buildBillingRecordsUrl(searchInput.value.trim()));
+    }, 300);
+});
 
-        if (search) {
-            url.searchParams.set('search', search);
-        } else {
-            url.searchParams.delete('search');
+function buildBillingRecordsUrl(search = document.getElementById('billingRecordsSearch').value.trim()) {
+    const url = new URL(@json(route('billing')), window.location.origin);
+    const selectedStatus = document.querySelector('.billing-status-filter:checked');
+    const billingPeriod = document.getElementById('billingPeriodFilter').value;
+
+    if (search) url.searchParams.set('search', search);
+    if (selectedStatus) url.searchParams.set('status', selectedStatus.value);
+    if (billingPeriod) url.searchParams.set('billing_period', billingPeriod);
+
+    return url.toString();
+}
+
+document.querySelectorAll('.billing-status-filter').forEach((checkbox) => {
+    checkbox.addEventListener('change', function() {
+        if (this.checked) {
+            document.querySelectorAll('.billing-status-filter').forEach((otherCheckbox) => {
+                if (otherCheckbox !== this) otherCheckbox.checked = false;
+            });
         }
 
-        fetchBillingRecords(url.toString());
-    }, 300);
+        fetchBillingRecords(buildBillingRecordsUrl());
+    });
+});
+
+document.getElementById('billingPeriodFilter').addEventListener('change', function() {
+    fetchBillingRecords(buildBillingRecordsUrl());
 });
 
 function fetchBillingRecords(url) {
@@ -673,6 +750,16 @@ function showRejectForm(id) {
 function hideRejectForm(id) {
     const form = document.getElementById('reject-form-' + id);
     if (form) form.classList.add('hidden');
+}
+
+function toggleOtherRejectionReason(select, id) {
+    const wrapper = document.getElementById('other-reason-wrapper-' + id);
+    const reason = document.getElementById('other-reason-' + id);
+    const isOther = select.value === 'other';
+
+    wrapper.classList.toggle('hidden', !isOther);
+    reason.disabled = !isOther;
+    reason.required = isOther;
 }
 
 function openCreatePlanModal() {

@@ -11,6 +11,7 @@ use App\Http\Controllers\SubscriberPortalController;
 use App\Http\Controllers\PaymentSubmissionController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SubscriberOfficeVisitRequestController;
 use App\Models\Subscriber;
 use Illuminate\Http\Request;
 
@@ -64,12 +65,20 @@ Route::middleware('auth')->group(function () {
     // Manual Trigger Route for Monthly Billing & Status Recalculation
     Route::post('/billing/generate-monthly', function () {
         Artisan::call('billing:generate-monthly');
-        return back()->with('success', 'Subscribers due today have been billed and subscriber statuses updated.');
+        return back()->with('success', 'Monthly billing has been processed and subscriber statuses updated.');
     })->name('billing.generate.monthly');
 
     // Reports
     Route::get('/reports', [ReportsController::class, 'index'])
         ->name('reports');
+    Route::post('/reports/office-visit-requests/{officeVisitRequest}/review', [
+        SubscriberOfficeVisitRequestController::class,
+        'review',
+    ])->name('reports.office-visit-requests.review');
+    Route::get('/reports/sms-logs/print', [ReportsController::class, 'printSmsLogs'])
+        ->name('reports.sms-logs.print');
+    Route::get('/reports/paid-bills/print', [ReportsController::class, 'printPaidBills'])
+        ->name('reports.paid-bills.print');
     Route::get('/reports/soa/{subscriber_id}', [ReportsController::class, 'generateSOA'])
         ->name('reports.soa');
 
@@ -118,7 +127,7 @@ Route::group(['middleware' => [function ($request, $next) {
 
     if ($subscriber->status === 'disconnected') {
         session()->forget(['subscriber_logged_in', 'subscriber_id']);
-        return redirect()->route('login')->with('error', 'Your account is disconnected. Please visit the administrator after paying your overdue balance.');
+        return redirect()->route('login')->with('error', "Your account has been disconnected due to overdue payments. Please visit your Internet Provider's Office to settle your outstanding balance and request reactivation.");
     }
 
     return $next($request);
@@ -140,6 +149,11 @@ Route::group(['middleware' => [function ($request, $next) {
         SubscriberPortalController::class,
         'updateProfile'
     ])->name('subscriber.profile.update');
+
+    Route::post('/portal/office-visit-requests', [
+        SubscriberPortalController::class,
+        'storeOfficeVisitRequest'
+    ])->name('subscriber.office-visit-requests.store');
 
     Route::get('/portal/profile/update', function () {
         return redirect()->route('subscriber.portal');

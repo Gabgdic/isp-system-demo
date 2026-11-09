@@ -36,7 +36,7 @@ class AuthController extends Controller
             $subscriber->syncOverdueStatus();
 
             if ($subscriber->status === 'disconnected') {
-                return back()->with('error', 'Your account is disconnected. Please visit the administrator after paying your overdue balance.');
+                return back()->with('error', "Your account has been disconnected due to overdue payments. Please visit your Internet Provider's Office to settle your outstanding balance and request reactivation.");
             }
 
             $request->session()->regenerate();

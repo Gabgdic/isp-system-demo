@@ -65,3 +65,7 @@ The `billing:generate-monthly` Artisan command runs daily at midnight and create
 - **Local development:** run `composer dev`. This starts Laravel's `schedule:work` alongside the web server and other development processes. To process subscribers due today, run `php artisan billing:generate-monthly`.
 - **Production:** keep Laravel's scheduler running by invoking `php artisan schedule:run` every minute. On Windows, configure Task Scheduler to run that command every minute with the project directory as its working directory. On Linux, configure cron to invoke the same command once per minute.
 - **Check registration:** run `php artisan schedule:list` and confirm `billing:generate-monthly` appears.
+
+## Subscriber SMS notifications
+
+Configure `PHILSMS_API_URL`, `PHILSMS_API_TOKEN`, and `PHILSMS_SENDER_ID` in `.env` to enable PhilSMS. The daily billing command sends one reminder five days before an unpaid bill's due date, including the subscriber portal link where the SOA is available. It also sends a notification after an administrator approves or rejects a payment. Ensure subscriber phone numbers are valid Philippine mobile numbers. SMS attempts and their send status are stored in `sms_logs`. Run `php artisan migrate` to create the SMS log table. Failed SMS requests are logged; due-date reminders are marked as sent only after PhilSMS confirms success.

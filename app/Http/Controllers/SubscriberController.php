@@ -7,6 +7,7 @@ use App\Models\PaymentSubmission;
 use App\Models\PaymentSubmissionBilling;
 use App\Models\Subscriber;
 use App\Models\SubscriptionPlan;
+use App\Services\PhilSmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -251,7 +252,7 @@ class SubscriberController extends Controller
         ]);
     }
 
-    public function recordPastDuePayment($id)
+    public function recordPastDuePayment($id, PhilSmsService $smsService)
     {
         $subscriber = Subscriber::findOrFail($id);
 
@@ -303,12 +304,14 @@ class SubscriberController extends Controller
                 ]);
             }
 
-            return ['amount' => $amountPaid];
+            return ['amount' => $amountPaid, 'payment' => $payment];
         });
 
         if (isset($result['error'])) {
             return back()->with('error', $result['error']);
         }
+
+        $smsService->sendPaymentApproved($result['payment']);
 
         return redirect()->route('subscriber')->with(
             'success',

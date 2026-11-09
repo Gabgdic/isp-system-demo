@@ -16,12 +16,14 @@ class BillingRecord extends Model
         'due_date',
         'status',
         'paid_at',
+        'due_date_reminder_sent_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'due_date' => 'date',
         'paid_at' => 'datetime',
+        'due_date_reminder_sent_at' => 'datetime',
     ];
 
     public function subscriber(): BelongsTo

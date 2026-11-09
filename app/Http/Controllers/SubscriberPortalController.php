@@ -6,6 +6,7 @@ use App\Models\BillingRecord;
 use App\Models\Subscriber;
 use App\Models\SystemSetting;
 use App\Models\PaymentSubmission;
+use App\Models\SubscriberOfficeVisitRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
@@ -15,14 +16,11 @@ class SubscriberPortalController extends Controller
 {
     public function index()
     {
-        $subscriber = Subscriber::find(session('subscriber_id'));
+        $subscriber = Subscriber::with('disconnections')->find(session('subscriber_id'));
 
         if (!$subscriber) {
             return redirect()->route('login')->with('error', 'Please sign in to access your portal.');
         }
-
-        // Automatically update overdue bills and evaluate subscriber status
-        $subscriber->updateStatusBasedOnBills();
 
         // Fetch billing records with payment allocations and submissions for receipt/rejection details
         $billingRecords = BillingRecord::with(['paymentAllocations.paymentSubmission'])
@@ -30,6 +28,22 @@ class SubscriberPortalController extends Controller
             ->orderByDesc('billing_year')
             ->orderByDesc('billing_month')
             ->get();
+
+        foreach ($billingRecords as $bill) {
+            if ($bill->due_date) {
+                continue;
+            }
+
+            $dueMonth = \Carbon\Carbon::create($bill->billing_year, $bill->billing_month, 1)
+                ->addMonth();
+            $bill->due_date = $dueMonth
+                ->day(min($subscriber->created_at->day, $dueMonth->daysInMonth))
+                ->startOfDay();
+            $bill->save();
+        }
+
+        // Automatically update overdue bills and evaluate subscriber status
+        $subscriber->updateStatusBasedOnBills();
 
         // Fetch recently accepted payments (approved in the last 7 days)
         $recentlyAcceptedPayments = PaymentSubmission::where('subscriber_id', $subscriber->id)
@@ -55,6 +69,10 @@ class SubscriberPortalController extends Controller
 
         $rejectedPayments = $rejectedPaymentsQuery->latest('reviewed_at')->get();
 
+        $officeVisitRequests = $subscriber->officeVisitRequests()
+            ->latest()
+            ->get();
+
         $payableBills = $billingRecords->filter(fn($bill) => in_array($bill->status, ['unpaid', 'overdue']));
         $pendingBills = $billingRecords->filter(fn($bill) => $bill->status === 'pending');
         $outstandingBalance = $payableBills->sum(fn($bill) => (float) $bill->amount);
@@ -75,6 +93,7 @@ class SubscriberPortalController extends Controller
             'billingRecords',
             'rejectedPayments',
             'recentlyAcceptedPayments',
+            'officeVisitRequests',
             'payableBills',
             'pendingBills',
             'outstandingBalance',
@@ -142,6 +161,25 @@ class SubscriberPortalController extends Controller
         $subscriber->save();
 
         return redirect()->back()->with('success', 'Profile updated successfully.');
+    }
+
+    public function storeOfficeVisitRequest(Request $request)
+    {
+        $validated = $request->validate([
+            'request_type' => ['required', Rule::in(['payment_reduction'])],
+            'visit_date' => ['required', 'date', 'after_or_equal:today'],
+        ]);
+
+        $subscriber = Subscriber::findOrFail(session('subscriber_id'));
+        SubscriberOfficeVisitRequest::create([
+            'subscriber_id' => $subscriber->id,
+            'request_type' => $validated['request_type'],
+            'visit_date' => $validated['visit_date'],
+            'status' => 'pending',
+        ]);
+
+        return redirect()->route('subscriber.portal')
+            ->with('success', 'Your office visit request has been submitted. Please visit the ISP office on your selected date and bring your SOA to request a payment reduction.');
     }
 
     /**

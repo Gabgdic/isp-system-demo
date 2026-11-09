@@ -7,28 +7,54 @@
 <div class="space-y-4 max-w-full mx-auto animate-fadeIn">
 
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Reports</h1>
             <p class="text-xs text-slate-500">Overview of payments, revenue, and billing performance.</p>
         </div>
 
-        <!-- Graph Filter -->
-        <form method="GET" action="{{ route('reports') }}">
-            <input type="hidden" name="search" value="{{ $search }}">
-            <select
-                name="period"
-                onchange="this.form.submit()"
-                aria-label="Filter reports by month"
-                class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-slate-300 outline-none"
-            >
-                <option value="overall" {{ $period === 'overall' ? 'selected' : '' }}>Overall</option>
-                @foreach($monthOptions as $monthValue => $monthLabel)
-                    <option value="{{ $monthValue }}" {{ $period === $monthValue ? 'selected' : '' }}>{{ $monthLabel }}</option>
-                @endforeach
-            </select>
-        </form>
+        <div class="flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                onclick="openSmsLogsModal()"
+                aria-haspopup="dialog"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >SMS Notification Logs</button>
+            <button
+                type="button"
+                onclick="openOfficeVisitRequestsModal()"
+                aria-haspopup="dialog"
+                class="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >Subscriber Requests ({{ $officeVisitRequests->where('status', 'pending')->count() }})</button>
+            <form method="GET" action="{{ route('reports') }}">
+                <input type="hidden" name="search" value="{{ $search }}">
+                <select
+                    name="period"
+                    onchange="this.form.submit()"
+                    aria-label="Filter reports by month"
+                    class="min-w-[6rem] border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-slate-300 outline-none"
+                >
+                    <option value="overall" {{ $period === 'overall' ? 'selected' : '' }}>Overall</option>
+                    @foreach($monthOptions as $monthValue => $monthLabel)
+                        <option value="{{ $monthValue }}" {{ $period === $monthValue ? 'selected' : '' }}>{{ $monthLabel }}</option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
     </div>
+
+    @if(session('success') || session('warning') || $errors->any())
+        <div class="rounded-xl border {{ session('warning') || $errors->any() ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800' }} px-4 py-3 text-xs font-semibold">
+            {{ session('success') ?? session('warning') }}
+            @if($errors->any())
+                <ul class="mt-1 list-inside list-disc font-normal">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    @endif
 
     <!-- Top KPI Cards Grid -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -56,6 +82,7 @@
             <p class="text-xs font-medium text-slate-500">Outstanding Balance</p>
             <p class="text-xl font-bold text-slate-900 mt-1">₱{{ number_format($outstandingBalance, 2) }}</p>
         </div>
+
     </div>
 
     <!-- Main Charts Section -->
@@ -87,9 +114,16 @@
 
     <section class="bg-slate-50 border border-slate-300 rounded-xl shadow-sm overflow-hidden">
         <div class="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-                <h2 class="text-sm font-bold text-slate-900">Paid Bills</h2>
-                <p class="text-xs text-slate-500">Payments with the bills they cover, paid date, and receipt.</p>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900">Paid Bills</h2>
+                    <p class="text-xs text-slate-500">Payments with the bills they cover, paid date, and receipt.</p>
+                </div>
+                <button
+                    type="button"
+                    onclick="printPaidBills()"
+                    class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
+                >Print / Save as PDF</button>
             </div>
             <label class="sr-only" for="paid-bills-search">Search paid bills</label>
             <input
@@ -107,6 +141,13 @@
     </section>
 
 </div>
+
+<iframe
+    id="paidBillsPrintFrame"
+    title="Printable paid bills report"
+    aria-hidden="true"
+    class="fixed left-[-10000px] top-0 h-px w-px border-0"
+></iframe>
 
 <div id="reportReceiptModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4" onclick="if (event.target === this) closeReportReceiptModal()">
     <div class="relative bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden my-8 border border-slate-200 flex flex-col max-h-[92vh]">
@@ -134,6 +175,86 @@
         </div>
     </div>
 </div>
+
+<div id="smsLogsModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="sms-logs-title" onclick="if (event.target === this) closeSmsLogsModal()">
+    <div class="relative bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 max-h-[85vh] flex flex-col">
+        <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <div>
+                <h3 id="sms-logs-title" class="text-sm font-bold text-slate-900">SMS Notification Logs</h3>
+                <p id="sms-logs-period" class="text-xs text-slate-500">Period: {{ $reportPeriodLabel }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="printSmsLogs()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold">Print / Save as PDF</button>
+                <button type="button" onclick="closeSmsLogsModal()" aria-label="Close SMS logs" class="w-7 h-7 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs">✕</button>
+            </div>
+        </div>
+        <div class="p-4 overflow-y-auto">
+            @include('admin.partials.sms_log_rows', ['smsLogs' => $smsLogs])
+        </div>
+    </div>
+</div>
+
+<div id="officeVisitRequestsModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="office-visit-requests-title" onclick="if (event.target === this) closeOfficeVisitRequestsModal()">
+    <div class="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+        <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <div>
+                <h3 id="office-visit-requests-title" class="text-sm font-bold text-slate-900">Subscriber Office Visit Requests</h3>
+                <p class="text-xs text-slate-500">Accept the requested date or move the visit to another date. Subscribers are notified by SMS and in their portal.</p>
+            </div>
+            <button type="button" onclick="closeOfficeVisitRequestsModal()" aria-label="Close subscriber requests" class="w-7 h-7 shrink-0 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs">✕</button>
+        </div>
+        <div class="p-4 overflow-y-auto space-y-3">
+            @forelse($officeVisitRequests as $officeVisitRequest)
+                <article class="rounded-xl border border-slate-200 p-4">
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div class="text-xs text-slate-700 space-y-1">
+                            <p class="font-bold text-sm text-slate-900">{{ $officeVisitRequest->subscriber->full_name ?? 'Subscriber unavailable' }}</p>
+                            <p>Username: {{ $officeVisitRequest->subscriber->username ?? 'N/A' }}</p>
+                            <p>Request: <span class="font-semibold">Request payment reduction</span></p>
+                            <p>Visit date: <span class="font-semibold">{{ $officeVisitRequest->visit_date->format('M d, Y') }}</span></p>
+                            <p>Submitted: {{ $officeVisitRequest->created_at->format('M d, Y g:i A') }}</p>
+                            <p>Status:
+                                <span class="font-bold {{ $officeVisitRequest->status === 'pending' ? 'text-amber-700' : ($officeVisitRequest->status === 'accepted' ? 'text-emerald-700' : 'text-blue-700') }}">
+                                    {{ ucfirst($officeVisitRequest->status) }}
+                                </span>
+                            </p>
+                        </div>
+                        @if($officeVisitRequest->status === 'pending')
+                            <div class="flex flex-col gap-2 sm:min-w-64">
+                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}">
+                                    @csrf
+                                    <input type="hidden" name="action" value="accept">
+                                    <button type="submit" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">
+                                        Accept requested date
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}" class="space-y-2">
+                                    @csrf
+                                    <input type="hidden" name="action" value="reschedule">
+                                    <label class="sr-only" for="visit-date-{{ $officeVisitRequest->id }}">New visit date</label>
+                                    <input id="visit-date-{{ $officeVisitRequest->id }}" type="date" name="visit_date" min="{{ today()->toDateString() }}" required class="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs">
+                                    <button type="submit" class="w-full rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800">
+                                        Move visit to this date
+                                    </button>
+                                </form>
+                            </div>
+                        @endif
+                    </div>
+                </article>
+            @empty
+                <p class="py-8 text-center text-sm text-slate-500">There are no subscriber requests yet.</p>
+            @endforelse
+        </div>
+    </div>
+</div>
+
+<iframe
+    id="smsLogsPrintFrame"
+    title="Printable SMS notification logs"
+    src="{{ route('reports.sms-logs.print', ['period' => $period]) }}"
+    aria-hidden="true"
+    class="fixed left-[-10000px] top-0 h-px w-px border-0"
+></iframe>
 
 <style>
     .animate-fadeIn {
@@ -299,10 +420,85 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.classList.remove('overflow-hidden');
     };
 
+    window.openSmsLogsModal = function () {
+        const modal = document.getElementById('smsLogsModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+    };
+
+    window.closeSmsLogsModal = function () {
+        const modal = document.getElementById('smsLogsModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    };
+
+    window.openOfficeVisitRequestsModal = function () {
+        const modal = document.getElementById('officeVisitRequestsModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+    };
+
+    window.closeOfficeVisitRequestsModal = function () {
+        const modal = document.getElementById('officeVisitRequestsModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    };
+
+    if (new URLSearchParams(window.location.search).get('show_requests') === '1') {
+        window.openOfficeVisitRequestsModal();
+    }
+
+    window.printPaidBills = function () {
+        const printFrame = document.getElementById('paidBillsPrintFrame');
+        const url = new URL(@json(route('reports.paid-bills.print')), window.location.origin);
+        const currentUrl = new URL(window.location.href);
+        const period = currentUrl.searchParams.get('period');
+        const search = paidBillsSearch.value.trim();
+
+        if (period) {
+            url.searchParams.set('period', period);
+        }
+        if (search) {
+            url.searchParams.set('search', search);
+        }
+
+        printFrame.onload = function () {
+            printFrame.onload = null;
+            if (!printFrame.contentWindow || printFrame.contentDocument?.readyState !== 'complete') {
+                alert('The paid bills report is still loading. Please try again.');
+                return;
+            }
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        };
+        printFrame.onerror = function () {
+            printFrame.onerror = null;
+            alert('Unable to load the paid bills report for printing.');
+        };
+        printFrame.src = url.toString();
+    };
+
+    window.printSmsLogs = function () {
+        const printFrame = document.getElementById('smsLogsPrintFrame');
+        if (!printFrame.contentWindow || printFrame.contentDocument?.readyState !== 'complete') {
+            alert('The SMS logs are still loading. Please try again.');
+            return;
+        }
+
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+    };
+
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeReportReceiptModal();
             closePaymentProofModal();
+            closeSmsLogsModal();
+            closeOfficeVisitRequestsModal();
         }
     });
 

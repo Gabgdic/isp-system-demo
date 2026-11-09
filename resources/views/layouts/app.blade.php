@@ -70,6 +70,46 @@
 
             <!-- Right -->
             <div class="flex items-center gap-3">
+                <div class="relative">
+                    <button
+                        id="adminNotificationsToggle"
+                        type="button"
+                        aria-label="Notifications"
+                        aria-controls="adminNotificationsPanel"
+                        aria-expanded="false"
+                        title="Notifications"
+                        onclick="toggleAdminNotifications()"
+                        class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+                    >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-4-5.7V5a2 2 0 10-4 0v.3A6 6 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/>
+                        </svg>
+                        <span id="adminNotificationsBadge" class="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white {{ $adminNotifications->isNotEmpty() ? '' : 'hidden' }}">
+                            {{ $adminNotifications->count() > 99 ? '99+' : $adminNotifications->count() }}
+                        </span>
+                    </button>
+                    <div id="adminNotificationsPanel" class="hidden absolute right-0 top-12 z-[100] w-[calc(100vw-1.5rem)] max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-2xl sm:w-96" role="region" aria-labelledby="adminNotificationsTitle">
+                        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                            <h2 id="adminNotificationsTitle" class="text-sm font-bold text-slate-900">Notifications</h2>
+                            <span id="adminNotificationsCount" class="text-[11px] text-slate-500">{{ $adminNotifications->count() }} new {{ \Illuminate\Support\Str::plural('notification', $adminNotifications->count()) }}</span>
+                        </div>
+                        <div class="max-h-[70vh] overflow-y-auto divide-y divide-slate-100">
+                            @forelse($adminNotifications as $notification)
+                                <a
+                                    href="{{ $notification['url'] }}"
+                                    class="admin-notification-item block px-4 py-3 text-xs transition hover:bg-slate-50"
+                                    data-notification-id="{{ $notification['id'] }}"
+                                >
+                                    <p class="font-bold text-slate-900">{{ $notification['title'] }}</p>
+                                    <p class="mt-1 leading-relaxed text-slate-600">{{ $notification['message'] }}</p>
+                                    <p class="mt-1 text-[10px] text-slate-400">{{ $notification['date']->format('M d, Y g:i A') }}</p>
+                                </a>
+                            @empty
+                                <p class="px-4 py-8 text-center text-xs text-slate-500">You have no notifications.</p>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
                 <button
                     id="adminThemeToggle"
                     type="button"
@@ -269,6 +309,89 @@
             sidebar.classList.toggle('-translate-x-full');
             overlay.classList.toggle('hidden');
         }
+
+        function adminNotificationStorageKey() {
+            return `admin-notifications-viewed-{{ Auth::id() }}`;
+        }
+
+        function getViewedAdminNotificationIds() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(adminNotificationStorageKey()) || '[]');
+                return new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : []);
+            } catch (error) {
+                return new Set();
+            }
+        }
+
+        function refreshAdminNotificationCount() {
+            const viewedIds = getViewedAdminNotificationIds();
+            const notifications = [...document.querySelectorAll('.admin-notification-item')];
+            const unseenCount = notifications.filter(notification =>
+                !viewedIds.has(notification.dataset.notificationId)
+            ).length;
+            const badge = document.getElementById('adminNotificationsBadge');
+            const countLabel = document.getElementById('adminNotificationsCount');
+            const button = document.getElementById('adminNotificationsToggle');
+
+            badge.textContent = unseenCount > 99 ? '99+' : String(unseenCount);
+            badge.classList.toggle('hidden', unseenCount === 0);
+            countLabel.textContent = unseenCount === 0
+                ? 'All caught up'
+                : `${unseenCount} new ${unseenCount === 1 ? 'notification' : 'notifications'}`;
+            button.setAttribute('aria-label', unseenCount > 0
+                ? `Notifications, ${unseenCount} new notifications`
+                : 'Notifications');
+        }
+
+        function markAdminNotificationsAsViewed() {
+            const viewedIds = getViewedAdminNotificationIds();
+            document.querySelectorAll('.admin-notification-item').forEach(notification => {
+                viewedIds.add(notification.dataset.notificationId);
+            });
+
+            try {
+                localStorage.setItem(adminNotificationStorageKey(), JSON.stringify([...viewedIds]));
+            } catch (error) {
+                // Keep the current page usable when browser storage is unavailable.
+            }
+
+            refreshAdminNotificationCount();
+        }
+
+        function toggleAdminNotifications() {
+            const panel = document.getElementById('adminNotificationsPanel');
+            const button = document.getElementById('adminNotificationsToggle');
+            const isOpen = !panel.classList.contains('hidden');
+
+            panel.classList.toggle('hidden', isOpen);
+            button.setAttribute('aria-expanded', String(!isOpen));
+            if (!isOpen) {
+                markAdminNotificationsAsViewed();
+            }
+        }
+
+        refreshAdminNotificationCount();
+
+        document.addEventListener('click', function (event) {
+            const panel = document.getElementById('adminNotificationsPanel');
+            const button = document.getElementById('adminNotificationsToggle');
+
+            if (!panel.classList.contains('hidden')
+                && !panel.contains(event.target)
+                && !button.contains(event.target)) {
+                panel.classList.add('hidden');
+                button.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                const panel = document.getElementById('adminNotificationsPanel');
+                const button = document.getElementById('adminNotificationsToggle');
+                panel.classList.add('hidden');
+                button.setAttribute('aria-expanded', 'false');
+            }
+        });
     </script>
 
 </body>

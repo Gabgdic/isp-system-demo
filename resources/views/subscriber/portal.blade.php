@@ -158,6 +158,85 @@
 
                 <!-- Header Logout Button -->
                 <div class="self-end sm:self-center flex items-center gap-2">
+                    @php
+                        $notificationCount = $recentlyAcceptedPayments->count()
+                            + $rejectedPayments->count()
+                            + $officeVisitRequests->count();
+                    @endphp
+                    <div class="relative">
+                        <button
+                            id="subscriberNotificationsToggle"
+                            type="button"
+                            aria-label="Notifications{{ $notificationCount ? ', ' . $notificationCount . ' updates' : '' }}"
+                            aria-controls="subscriberNotificationsPanel"
+                            aria-expanded="false"
+                            title="Notifications"
+                            onclick="toggleSubscriberNotifications()"
+                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-700/80 text-slate-200 transition hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-white/70"
+                        >
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-4-5.7V5a2 2 0 10-4 0v.3A6 6 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/>
+                            </svg>
+                            <span id="subscriberNotificationsBadge" class="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white {{ $notificationCount > 0 ? '' : 'hidden' }}">
+                                    {{ $notificationCount > 99 ? '99+' : $notificationCount }}
+                            </span>
+                        </button>
+                        <div id="subscriberNotificationsPanel" class="hidden absolute left-1/2 right-auto top-11 z-[120] w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-2xl sm:left-auto sm:right-0 sm:w-96 sm:translate-x-0" role="region" aria-labelledby="subscriberNotificationsTitle">
+                            <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                                <h2 id="subscriberNotificationsTitle" class="text-sm font-bold text-slate-900">Notifications</h2>
+                                <span id="subscriberNotificationsCount" class="text-[11px] text-slate-500">{{ $notificationCount }} new {{ \Illuminate\Support\Str::plural('update', $notificationCount) }}</span>
+                            </div>
+                            <div class="max-h-[65vh] overflow-y-auto divide-y divide-slate-100">
+                                @foreach($officeVisitRequests as $officeVisitRequest)
+                                    <div class="subscriber-notification-item px-4 py-3 text-xs" data-notification-id="office-visit:{{ $officeVisitRequest->id }}:{{ $officeVisitRequest->status }}:{{ $officeVisitRequest->updated_at->timestamp }}">
+                                        <p class="font-bold {{ $officeVisitRequest->status === 'accepted' ? 'text-emerald-700' : ($officeVisitRequest->status === 'rescheduled' ? 'text-blue-700' : 'text-amber-700') }}">
+                                            Payment reduction request {{ ucfirst($officeVisitRequest->status) }}
+                                        </p>
+                                        <p class="mt-1 leading-relaxed text-slate-600">
+                                            @if($officeVisitRequest->status === 'accepted')
+                                                Please visit the ISP office on {{ $officeVisitRequest->visit_date->format('M d, Y') }} and bring or show your SOA.
+                                            @elseif($officeVisitRequest->status === 'rescheduled')
+                                                Your new ISP office visit date is {{ $officeVisitRequest->visit_date->format('M d, Y') }}. Bring or show your SOA.
+                                            @else
+                                                Your request is awaiting review. Requested visit date: {{ $officeVisitRequest->visit_date->format('M d, Y') }}.
+                                            @endif
+                                        </p>
+                                        <p class="mt-1 text-[10px] text-slate-400">{{ $officeVisitRequest->created_at->format('M d, Y g:i A') }}</p>
+                                    </div>
+                                @endforeach
+
+                                @foreach($recentlyAcceptedPayments as $accepted)
+                                    <div class="subscriber-notification-item px-4 py-3 text-xs" data-notification-id="payment-approved:{{ $accepted->id }}:{{ $accepted->updated_at->timestamp }}">
+                                        <p class="font-bold text-emerald-700">Payment accepted</p>
+                                        <p class="mt-1 leading-relaxed text-slate-600">
+                                            Your payment of ₱{{ number_format($accepted->amount_paid ?? $accepted->amount, 2) }}
+                                            (Ref: {{ $accepted->reference_number ?? 'N/A' }}) was verified and processed.
+                                        </p>
+                                        <p class="mt-1 text-[10px] text-slate-400">
+                                            {{ $accepted->reviewed_at ? \Carbon\Carbon::parse($accepted->reviewed_at)->format('M d, Y g:i A') : $accepted->updated_at?->format('M d, Y g:i A') }}
+                                        </p>
+                                    </div>
+                                @endforeach
+
+                                @foreach($rejectedPayments as $rejected)
+                                    <div class="subscriber-notification-item px-4 py-3 text-xs" data-notification-id="payment-rejected:{{ $rejected->id }}:{{ $rejected->updated_at->timestamp }}">
+                                        <p class="font-bold text-red-700">Payment submission rejected</p>
+                                        <p class="mt-1 leading-relaxed text-slate-600">
+                                            Reason: {{ $rejected->admin_note ?? 'No specific reason provided.' }}
+                                        </p>
+                                        <p class="mt-1 text-[10px] text-slate-400">
+                                            Ref: {{ $rejected->reference_number }} ·
+                                            {{ $rejected->reviewed_at ? \Carbon\Carbon::parse($rejected->reviewed_at)->format('M d, Y g:i A') : $rejected->updated_at?->format('M d, Y g:i A') }}
+                                        </p>
+                                    </div>
+                                @endforeach
+
+                                @if($notificationCount === 0)
+                                    <p class="px-4 py-8 text-center text-xs text-slate-500">You have no notifications.</p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
                     <button
                         id="adminThemeToggle"
                         type="button"
@@ -185,57 +264,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-
-        <!-- PAYMENT STATUS NOTIFICATIONS -->
-        <div class="px-4 sm:px-8 pt-4 space-y-3">
-            
-            <!-- 1. RECENTLY ACCEPTED PAYMENT NOTICE BANNER -->
-            @if(isset($recentlyAcceptedPayments) && $recentlyAcceptedPayments->isNotEmpty())
-                @foreach($recentlyAcceptedPayments as $accepted)
-                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm text-xs text-emerald-900 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-1.5 font-bold text-emerald-700">
-                                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                Payment Accepted & Approved
-                            </div>
-                            <p class="text-slate-600">
-                                Your payment submission of <strong class="text-emerald-800">₱{{ number_format($accepted->amount_paid ?? $accepted->amount, 2) }}</strong> (Ref: <span class="font-mono font-bold">{{ $accepted->reference_number ?? 'N/A' }}</span>) has been verified and processed successfully.
-                            </p>
-                        </div>
-                        <span class="text-[10px] text-emerald-600 font-medium sm:whitespace-nowrap sm:shrink-0">
-                            {{ $accepted->reviewed_at ? \Carbon\Carbon::parse($accepted->reviewed_at)->format('M d, Y') : ($accepted->updated_at ? \Carbon\Carbon::parse($accepted->updated_at)->format('M d, Y') : '') }}
-                        </span>
-                    </div>
-                @endforeach
-            @endif
-
-            <!-- 2. REJECTED PAYMENT NOTICE BANNER -->
-            @if(isset($rejectedPayments) && $rejectedPayments->isNotEmpty())
-                @foreach($rejectedPayments as $rejected)
-                    <div class="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm text-xs text-red-800">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 font-bold mb-1">
-                            <span class="flex items-center gap-1.5 text-red-700">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Payment Submission Rejected
-                            </span>
-                            <span class="text-[10px] text-red-500 font-normal">
-                                {{ $rejected->reviewed_at ? \Carbon\Carbon::parse($rejected->reviewed_at)->format('M d, Y h:i A') : '' }}
-                            </span>
-                        </div>
-                        <p class="mt-1">
-                            <strong class="font-bold">Reason:</strong> {{ $rejected->admin_note ?? 'No specific reason provided by administrator.' }}
-                        </p>
-                        <div class="mt-2 text-[11px] text-red-600 font-medium">
-                            Ref No: <span class="font-mono font-bold">{{ $rejected->reference_number }}</span> — Amount: <span class="font-bold">₱{{ number_format($rejected->amount_paid, 2) }}</span>
-                        </div>
-                    </div>
-                @endforeach
-            @endif
         </div>
 
         <!-- MAIN RESPONSIVE CONTENT GRID -->
@@ -266,7 +294,7 @@
             @endif
 
             <!-- QUICK ACTION NAVIGATION -->
-            <div class="grid grid-cols-3 gap-3 sm:gap-6 text-center max-w-xl mx-auto">
+            <div class="grid grid-cols-4 gap-3 sm:gap-6 text-center max-w-2xl mx-auto">
                 <button 
                     @if($outstandingBalance > 0 && !$pendingBills->count()) onclick="openOutstandingPaymentModal()" @endif 
                     class="flex flex-col items-center group focus:outline-none {{ ($outstandingBalance <= 0 || $pendingBills->count()) ? 'opacity-50 cursor-not-allowed' : '' }}"
@@ -293,6 +321,13 @@
                         <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     </div>
                     <span class="text-xs font-bold text-slate-700 mt-2 leading-tight">SOA</span>
+                </button>
+
+                <button type="button" onclick="openOfficeVisitRequestModal()" class="flex flex-col items-center group focus:outline-none">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md group-hover:scale-105 group-active:scale-95 transition-all p-3.5">
+                        <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zM12 15v3m-1.5-1.5h3"/></svg>
+                    </div>
+                    <span class="text-xs font-bold text-slate-700 mt-2 leading-tight">Request Visit</span>
                 </button>
             </div>
 
@@ -408,6 +443,24 @@
                     <button onclick="closeBillingHistoryModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold">✕</button>
                 </div>
 
+                @if($subscriber->disconnections->isNotEmpty() || $subscriber->disconnected_at || $subscriber->status === 'disconnected')
+                    <div class="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5">
+                        <p class="mb-1 text-xs font-bold text-red-800">Disconnection history</p>
+                        @forelse($subscriber->disconnections as $disconnection)
+                            <p class="text-xs font-semibold text-red-800">
+                                {{ $disconnection->disconnected_at->format('F Y') }}
+                                <span class="font-normal text-red-700">
+                                    ({{ $disconnection->disconnected_at->format('M d, Y g:i A') }})
+                                </span>
+                            </p>
+                        @empty
+                            <p class="text-xs font-semibold text-red-800">
+                                {{ $subscriber->disconnected_at?->format('F Y (M d, Y g:i A)') ?? 'Date unavailable' }}
+                            </p>
+                        @endforelse
+                    </div>
+                @endif
+
                 <div class="max-h-[60vh] overflow-y-auto divide-y divide-slate-100 space-y-3 pr-1">
                     @forelse($billingRecords as $bill)
                         @php
@@ -421,7 +474,6 @@
                             $paidDate = $bill->paid_at 
                                 ? \Carbon\Carbon::parse($bill->paid_at)->format('M d, Y') 
                                 : ($bill->updated_at ? \Carbon\Carbon::parse($bill->updated_at)->format('M d, Y') : 'N/A');
-                            $screenshot = $submission->payment_screenshot ?? $bill->payment_screenshot ?? null;
                         @endphp
                         <div class="pt-3 first:pt-0">
                             <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3 sm:gap-4">
@@ -445,9 +497,8 @@
                                                     month: '{{ $billingMonth }}',
                                                     amount: '₱{{ number_format($bill->amount, 2) }}',
                                                     ref: '{{ $refNo }}',
-                                                    date: '{{ $paidDate }}',
-                                                    screenshot: '{{ $screenshot ? asset("storage/" . $screenshot) : "" }}'
-                                                })" 
+                                                    date: '{{ $paidDate }}'
+                                                })"
                                                 class="bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition">
                                                 View Receipt
                                             </button>
@@ -557,14 +608,6 @@
                                 </tr>
                             </tfoot>
                         </table>
-                    </div>
-
-                    <!-- PROOF OF PAYMENT SCREENSHOT ATTACHMENT (Hidden on print via no-print) -->
-                    <div id="receiptProofWrapper" class="hidden space-y-1.5 border-t border-slate-100 pt-3 no-print">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Uploaded Payment Screenshot</span>
-                        <div class="flex max-h-[70vh] items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-2">
-                            <img id="receiptProofImg" src="" alt="Proof of payment" class="block h-auto w-auto max-h-[66vh] max-w-full object-contain">
-                        </div>
                     </div>
 
                     <!-- ACKNOWLEDGMENT NOTE -->
@@ -734,6 +777,45 @@
     </div>
 
     @endif
+    <!-- MODAL: OFFICE VISIT REQUEST -->
+    <div id="officeVisitRequestModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="officeVisitRequestTitle">
+        <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeOfficeVisitRequestModal()"></div>
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-6">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 mb-4">
+                    <div>
+                        <h2 id="officeVisitRequestTitle" class="text-lg font-bold text-slate-900">Request an ISP Office Visit</h2>
+                        <p class="text-xs text-slate-500 mt-1">Choose a date to visit the ISP office.</p>
+                    </div>
+                    <button type="button" aria-label="Close office visit request" onclick="closeOfficeVisitRequestModal()" class="w-8 h-8 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold">✕</button>
+                </div>
+
+                <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                    <p class="font-bold">This request requires an in-person office visit.</p>
+                    <p class="mt-1">Please visit the ISP office on your selected date and bring or show your Statement of Account (SOA) to discuss a payment reduction. Submitting this request does not guarantee a discount.</p>
+                </div>
+
+                <form method="POST" action="{{ route('subscriber.office-visit-requests.store') }}" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label for="officeVisitRequestType" class="block text-xs font-bold text-slate-700 mb-1">Request</label>
+                        <select id="officeVisitRequestType" name="request_type" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+                            <option value="payment_reduction">Request payment reduction</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="officeVisitDate" class="block text-xs font-bold text-slate-700 mb-1">Preferred office visit date</label>
+                        <input id="officeVisitDate" type="date" name="visit_date" min="{{ today()->toDateString() }}" value="{{ old('visit_date') }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" onclick="closeOfficeVisitRequestModal()" class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
+                        <button type="submit" class="flex-1 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white shadow">Submit Request</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: EDIT PROFILE -->
     <div id="editProfileModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeEditProfileModal()"></div>
@@ -942,10 +1024,10 @@
                         <input type="file" id="paymentProofInput" name="payment_screenshot" accept="image/*" required onchange="previewPaymentProof(event)" class="w-full text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-slate-100 file:font-bold">
                         
                         <!-- Preview Box -->
-                        <div id="paymentProofPreviewBox" class="mt-2 hidden border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2">
+                        <div id="paymentProofPreviewBox" class="mt-2 hidden border border-slate-200 rounded-xl bg-slate-50 p-2">
                             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Payment Proof Preview:</span>
-                            <div class="max-h-48 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                                <img id="paymentProofPreviewImg" src="" alt="Proof Preview" class="w-full h-full object-contain">
+                            <div class="max-h-[60vh] overflow-auto rounded-lg border border-slate-200 bg-slate-100 flex justify-center">
+                                <img id="paymentProofPreviewImg" src="" alt="Proof Preview" class="block h-auto w-auto max-h-[60vh] max-w-full object-contain">
                             </div>
                         </div>
                     </div>
@@ -1116,16 +1198,6 @@
             document.getElementById('receiptRef').innerText = data.ref || 'N/A';
             document.getElementById('receiptDate').innerText = data.date || 'N/A';
 
-            const proofWrapper = document.getElementById('receiptProofWrapper');
-            const proofImg = document.getElementById('receiptProofImg');
-
-            if (data.screenshot) {
-                proofImg.src = data.screenshot;
-                proofWrapper.classList.remove('hidden');
-            } else {
-                proofWrapper.classList.add('hidden');
-            }
-
             document.getElementById('receiptModal')?.classList.remove('hidden');
         }
         function closeReceiptModal() {
@@ -1137,6 +1209,13 @@
         }
         function closeSOAModal() {
             document.getElementById('soaModal')?.classList.add('hidden');
+        }
+
+        function openOfficeVisitRequestModal() {
+            document.getElementById('officeVisitRequestModal')?.classList.remove('hidden');
+        }
+        function closeOfficeVisitRequestModal() {
+            document.getElementById('officeVisitRequestModal')?.classList.add('hidden');
         }
 
         function openEditProfileModal() {
@@ -1155,8 +1234,95 @@
             document.getElementById('outstandingPaymentModal')?.classList.add('hidden');
         }
 
+        function toggleSubscriberNotifications() {
+            const panel = document.getElementById('subscriberNotificationsPanel');
+            const button = document.getElementById('subscriberNotificationsToggle');
+            const isOpen = !panel.classList.contains('hidden');
+
+            panel.classList.toggle('hidden', isOpen);
+            button.setAttribute('aria-expanded', String(!isOpen));
+
+            if (!isOpen) {
+                markSubscriberNotificationsAsViewed();
+            }
+        }
+
+        function updateSubscriberNotificationCount(count) {
+            const badge = document.getElementById('subscriberNotificationsBadge');
+            const countLabel = document.getElementById('subscriberNotificationsCount');
+            const button = document.getElementById('subscriberNotificationsToggle');
+
+            badge.textContent = count > 99 ? '99+' : String(count);
+            badge.classList.toggle('hidden', count === 0);
+            countLabel.textContent = count === 0
+                ? 'All caught up'
+                : `${count} new ${count === 1 ? 'update' : 'updates'}`;
+            button.setAttribute('aria-label', count > 0
+                ? `Notifications, ${count} new updates`
+                : 'Notifications');
+        }
+
+        function subscriberNotificationStorageKey() {
+            return `subscriber-notifications-viewed-{{ $subscriber->id }}`;
+        }
+
+        function getViewedSubscriberNotificationIds() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(subscriberNotificationStorageKey()) || '[]');
+                return new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : []);
+            } catch (error) {
+                return new Set();
+            }
+        }
+
+        function refreshSubscriberNotificationCount() {
+            const viewedIds = getViewedSubscriberNotificationIds();
+            const notifications = [...document.querySelectorAll('.subscriber-notification-item')];
+            const unseenCount = notifications.filter(notification =>
+                !viewedIds.has(notification.dataset.notificationId)
+            ).length;
+
+            updateSubscriberNotificationCount(unseenCount);
+        }
+
+        function markSubscriberNotificationsAsViewed() {
+            const viewedIds = getViewedSubscriberNotificationIds();
+            document.querySelectorAll('.subscriber-notification-item').forEach(notification => {
+                viewedIds.add(notification.dataset.notificationId);
+            });
+
+            try {
+                localStorage.setItem(
+                    subscriberNotificationStorageKey(),
+                    JSON.stringify([...viewedIds])
+                );
+            } catch (error) {
+                // The current page still marks them viewed even when browser storage is unavailable.
+            }
+
+            updateSubscriberNotificationCount(0);
+        }
+
+        refreshSubscriberNotificationCount();
+
+        document.addEventListener('click', function(event) {
+            const panel = document.getElementById('subscriberNotificationsPanel');
+            const button = document.getElementById('subscriberNotificationsToggle');
+
+            if (!panel?.classList.contains('hidden')
+                && !panel.contains(event.target)
+                && !button.contains(event.target)) {
+                panel.classList.add('hidden');
+                button.setAttribute('aria-expanded', 'false');
+            }
+        });
+
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
+                const notificationPanel = document.getElementById('subscriberNotificationsPanel');
+                const notificationButton = document.getElementById('subscriberNotificationsToggle');
+                notificationPanel?.classList.add('hidden');
+                notificationButton?.setAttribute('aria-expanded', 'false');
                 closeReceiptModal();
                 closeBillingHistoryModal();
                 closeSOAModal();

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\Subscriber;
 use App\Models\BillingRecord;
+use App\Services\PhilSmsService;
 use Carbon\Carbon;
 
 class GenerateMonthlyBills extends Command
@@ -13,7 +14,7 @@ class GenerateMonthlyBills extends Command
 
     protected $description = 'Generate monthly billing records on each subscriber anniversary';
 
-    public function handle()
+    public function handle(PhilSmsService $smsService)
     {
         $now = Carbon::now();
         
@@ -29,7 +30,7 @@ class GenerateMonthlyBills extends Command
                     $existingRecord->billing_year,
                     $existingRecord->billing_month,
                     1
-                );
+                )->addMonth();
                 $recordDueDate = $billingMonth
                     ->copy()
                     ->day(min($signupDay, $billingMonth->daysInMonth))
@@ -44,7 +45,10 @@ class GenerateMonthlyBills extends Command
             $subscriber->syncOverdueStatus();
 
             $billingDay = min($signupDay, $now->daysInMonth);
-            $dueDate = $now->copy()->day($billingDay)->startOfDay();
+            $dueMonth = $now->copy()->startOfMonth()->addMonth();
+            $dueDate = $dueMonth
+                ->day(min($signupDay, $dueMonth->daysInMonth))
+                ->startOfDay();
             $record = BillingRecord::firstOrNew([
                 'subscriber_id' => $subscriber->id,
                 'billing_month' => $now->month,
@@ -57,7 +61,7 @@ class GenerateMonthlyBills extends Command
 
             if (
                 !in_array($subscriber->status, ['active', 'inactive'], true)
-                || $now->day !== $billingDay
+                || $now->day < $billingDay
             ) {
                 continue;
             }
@@ -71,7 +75,25 @@ class GenerateMonthlyBills extends Command
             $count++;
         }
 
-        $this->info("Generated {$count} new billing records and corrected {$updatedDueDates} existing due dates.");
+        $remindersSent = 0;
+        BillingRecord::query()
+            ->with('subscriber')
+            ->whereDate('due_date', $now->copy()->addDays(5)->toDateString())
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->whereNull('due_date_reminder_sent_at')
+            ->orderBy('id')
+            ->chunkById(100, function ($billingRecords) use ($smsService, &$remindersSent): void {
+                foreach ($billingRecords as $billingRecord) {
+                    if ($smsService->sendDueDateReminder($billingRecord)) {
+                        $billingRecord->update([
+                            'due_date_reminder_sent_at' => now(),
+                        ]);
+                        $remindersSent++;
+                    }
+                }
+            });
+
+        $this->info("Generated {$count} new billing records, corrected {$updatedDueDates} existing due dates, and sent {$remindersSent} due-date reminders.");
         return Command::SUCCESS;
     }
 }
