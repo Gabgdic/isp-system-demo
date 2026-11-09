@@ -97,9 +97,10 @@
                             @forelse($adminNotifications as $notification)
                                 <a
                                     href="{{ $notification['url'] }}"
-                                    class="admin-notification-item block px-4 py-3 text-xs transition hover:bg-slate-50"
+                                    class="admin-notification-item relative block px-4 py-3 pr-8 text-xs transition hover:bg-slate-50"
                                     data-notification-id="{{ $notification['id'] }}"
                                 >
+                                    <span class="admin-notification-unread-dot absolute right-4 top-4 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-label="Unread notification"></span>
                                     <p class="font-bold text-slate-900">{{ $notification['title'] }}</p>
                                     <p class="mt-1 leading-relaxed text-slate-600">{{ $notification['message'] }}</p>
                                     <p class="mt-1 text-[10px] text-slate-400">{{ $notification['date']->format('M d, Y g:i A') }}</p>
@@ -326,9 +327,12 @@
         function refreshAdminNotificationCount() {
             const viewedIds = getViewedAdminNotificationIds();
             const notifications = [...document.querySelectorAll('.admin-notification-item')];
-            const unseenCount = notifications.filter(notification =>
-                !viewedIds.has(notification.dataset.notificationId)
-            ).length;
+            const unseenCount = notifications.filter(notification => {
+                const isUnread = !viewedIds.has(notification.dataset.notificationId);
+                notification.querySelector('.admin-notification-unread-dot')
+                    ?.classList.toggle('hidden', !isUnread);
+                return isUnread;
+            }).length;
             const badge = document.getElementById('adminNotificationsBadge');
             const countLabel = document.getElementById('adminNotificationsCount');
             const button = document.getElementById('adminNotificationsToggle');
@@ -343,11 +347,9 @@
                 : 'Notifications');
         }
 
-        function markAdminNotificationsAsViewed() {
+        function markAdminNotificationAsViewed(notificationId) {
             const viewedIds = getViewedAdminNotificationIds();
-            document.querySelectorAll('.admin-notification-item').forEach(notification => {
-                viewedIds.add(notification.dataset.notificationId);
-            });
+            viewedIds.add(notificationId);
 
             try {
                 localStorage.setItem(adminNotificationStorageKey(), JSON.stringify([...viewedIds]));
@@ -365,9 +367,6 @@
 
             panel.classList.toggle('hidden', isOpen);
             button.setAttribute('aria-expanded', String(!isOpen));
-            if (!isOpen) {
-                markAdminNotificationsAsViewed();
-            }
         }
 
         refreshAdminNotificationCount();
@@ -375,6 +374,11 @@
         document.addEventListener('click', function (event) {
             const panel = document.getElementById('adminNotificationsPanel');
             const button = document.getElementById('adminNotificationsToggle');
+            const notification = event.target.closest('.admin-notification-item');
+
+            if (notification) {
+                markAdminNotificationAsViewed(notification.dataset.notificationId);
+            }
 
             if (!panel.classList.contains('hidden')
                 && !panel.contains(event.target)

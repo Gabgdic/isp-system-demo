@@ -31,7 +31,9 @@ class PhilSmsService
                 $systemName,
                 $billingPeriod,
                 number_format((float) $billingRecord->amount, 2),
-                $billingRecord->due_date?->format('M d, Y') ?? 'N/A',
+                $billingRecord->due_date
+                    ? \Carbon\Carbon::parse($billingRecord->due_date)->format('M d, Y')
+                    : 'N/A',
                 url('/portal')
             ),
             'subscriber',
@@ -79,25 +81,36 @@ class PhilSmsService
 
     public function sendOfficeVisitRequestUpdate(
         SubscriberOfficeVisitRequest $officeVisitRequest,
-        bool $rescheduled
+        string $status
     ): bool {
         $subscriber = $officeVisitRequest->subscriber;
         $systemName = SystemSetting::query()->value('system_name') ?: config('app.name');
-        $message = $rescheduled
-            ? 'Hello %s, %s: Your ISP office visit for a payment reduction request has been moved to %s. Please bring or show your SOA.'
-            : 'Hello %s, %s: Your ISP office visit request for a payment reduction is accepted for %s. Please bring or show your SOA.';
+        $isInternetFix = $officeVisitRequest->request_type === 'internet_fix';
+        $message = $isInternetFix
+            ? match ($status) {
+                'rescheduled' => 'Hello %s, %s: Your internet repair visit has been moved to %s.',
+                'rejected' => 'Hello %s, %s: Your internet repair request was not accepted. Please contact our office if you need assistance.',
+                default => 'Hello %s, %s: Your internet repair request is scheduled for %s.',
+            }
+            : match ($status) {
+                'rescheduled' => 'Hello %s, %s: Your ISP office visit for a payment reduction request has been moved to %s. Please bring or show your SOA.',
+                'rejected' => 'Hello %s, %s: Your ISP office visit request for a payment reduction was not accepted. Please contact our office if you need assistance.',
+                default => 'Hello %s, %s: Your ISP office visit request for a payment reduction is accepted for %s. Please bring or show your SOA.',
+            };
 
         return $this->send(
             $subscriber?->phone_number,
-            sprintf(
-                $message,
-                $subscriber?->full_name ?? 'subscriber',
-                $systemName,
-                $officeVisitRequest->visit_date->format('M d, Y')
-            ),
+            $status === 'rejected'
+                ? sprintf($message, $subscriber?->full_name ?? 'subscriber', $systemName)
+                : sprintf(
+                    $message,
+                    $subscriber?->full_name ?? 'subscriber',
+                    $systemName,
+                    \Carbon\Carbon::parse($officeVisitRequest->visit_date)->format('M d, Y')
+                ),
             'subscriber',
             $subscriber?->id ?? $officeVisitRequest->subscriber_id,
-            $rescheduled ? 'office_visit_rescheduled' : 'office_visit_accepted'
+            'office_visit_' . ($status === 'accepted' ? 'accepted' : $status)
         )['success'];
     }
 

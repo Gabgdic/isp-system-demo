@@ -47,7 +47,7 @@ test('subscriber billing history displays the total number of bills', function (
         ->assertSee('name="suffix"', false)
         ->assertSee('name="facebook_name"', false)
         ->assertSee('name="phone_number"', false)
-        ->assertSee('Request Visit')
+        ->assertSee('Help')
         ->assertSee('Request payment reduction')
         ->assertSee('bring or show your Statement of Account (SOA)');
 });
@@ -77,6 +77,58 @@ test('subscriber can submit a payment reduction request with an office visit dat
         ->and($request->status)->toBe('pending');
 });
 
+test('subscriber can request an internet repair without choosing a date', function () {
+    $subscriber = Subscriber::create([
+        'full_name' => 'Internet Fix Subscriber',
+        'username' => 'internet-fix-subscriber',
+        'password' => Hash::make('Password123!'),
+        'monthly_fee' => 500,
+        'status' => 'active',
+    ]);
+
+    $this->withSession([
+        'subscriber_logged_in' => true,
+        'subscriber_id' => $subscriber->id,
+    ])->post(route('subscriber.office-visit-requests.store'), [
+        'request_type' => 'internet_fix',
+        'visit_date' => 'not-a-date',
+    ])->assertRedirect(route('subscriber.portal'))
+        ->assertSessionHas('success', 'Your internet repair request has been submitted. The ISP office will contact you with a schedule.');
+
+    $request = SubscriberOfficeVisitRequest::query()->sole();
+    expect($request->request_type)->toBe('internet_fix')
+        ->and($request->visit_date)->toBeNull()
+        ->and($request->status)->toBe('pending');
+});
+
+test('subscriber cannot submit another request of the same type while one is pending', function () {
+    $subscriber = Subscriber::create([
+        'full_name' => 'Duplicate Request Subscriber',
+        'username' => 'duplicate-request-subscriber',
+        'password' => Hash::make('Password123!'),
+        'monthly_fee' => 500,
+        'status' => 'active',
+    ]);
+    SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'internet_fix',
+        'visit_date' => null,
+        'status' => 'pending',
+    ]);
+
+    $this->withSession([
+        'subscriber_logged_in' => true,
+        'subscriber_id' => $subscriber->id,
+    ])->from(route('subscriber.portal'))
+        ->post(route('subscriber.office-visit-requests.store'), [
+            'request_type' => 'internet_fix',
+        ])
+        ->assertRedirect(route('subscriber.portal'))
+        ->assertSessionHas('error', 'You already have a pending request of this type. Please wait for it to be reviewed before submitting another.');
+
+    expect(SubscriberOfficeVisitRequest::count())->toBe(1);
+});
+
 test('portal displays office visit request review and reschedule updates', function () {
     $subscriber = Subscriber::create([
         'full_name' => 'Office Visit Notice Subscriber',
@@ -98,6 +150,12 @@ test('portal displays office visit request review and reschedule updates', funct
         'visit_date' => '2026-12-15',
         'status' => 'rescheduled',
     ]);
+    SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'payment_reduction',
+        'visit_date' => '2026-12-20',
+        'status' => 'rejected',
+    ]);
 
     $this->withSession([
         'subscriber_logged_in' => true,
@@ -111,6 +169,8 @@ test('portal displays office visit request review and reschedule updates', funct
         ->assertSee('Please visit the ISP office on Dec 10, 2026')
         ->assertSee('Rescheduled')
         ->assertSee('Your new ISP office visit date is Dec 15, 2026')
+        ->assertSee('Payment reduction request Rejected')
+        ->assertSee('Your request was not accepted. Please contact the ISP office if you need assistance.')
         ->assertDontSee('Office Visit Request Updates');
 });
 
@@ -165,6 +225,34 @@ test('portal fills a missing bill due date from the subscribers signup day', fun
         ->assertDontSee('Uploaded Payment Screenshot');
 
     expect($bill->fresh()->due_date->toDateString())->toBe('2026-12-06');
+});
+
+test('portal shows N/A for the due date of a paid bill', function () {
+    $subscriber = Subscriber::create([
+        'full_name' => 'Paid Bill Subscriber',
+        'username' => 'paid-bill-due-date',
+        'password' => Hash::make('Password123!'),
+        'monthly_fee' => 500,
+        'status' => 'active',
+    ]);
+
+    BillingRecord::create([
+        'subscriber_id' => $subscriber->id,
+        'billing_month' => now()->month,
+        'billing_year' => now()->year,
+        'amount' => 500,
+        'due_date' => today()->addDays(10)->toDateString(),
+        'status' => 'paid',
+        'paid_at' => now(),
+    ]);
+
+    $this->withSession([
+        'subscriber_logged_in' => true,
+        'subscriber_id' => $subscriber->id,
+    ])->get(route('subscriber.portal'))
+        ->assertOk()
+        ->assertSee('Due: N/A')
+        ->assertDontSee(today()->addDays(10)->format('M d, Y'));
 });
 
 test('subscriber can update phone number and Facebook name from the portal', function () {

@@ -46,29 +46,29 @@
             <span class="text-xs font-medium text-slate-500">Current billing period</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            <article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-semibold text-slate-600">Paid bills</p>
                 <p class="mt-4 text-3xl font-black tracking-tight text-slate-900">{{ number_format($thisMonthPaidBills) }}</p>
                 <p class="mt-1 text-xs text-slate-500">Bills paid this month</p>
             </article>
-            <article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-semibold text-slate-600">Unpaid</p>
                 <p class="mt-4 text-3xl font-black tracking-tight text-slate-900">{{ number_format($thisMonthUnpaidBills) }}</p>
                 <p class="mt-1 text-xs text-slate-500">Unpaid or overdue bills</p>
             </article>
-            <article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-semibold text-slate-600">Pending review</p>
                 <p class="mt-4 text-3xl font-black tracking-tight text-slate-900">{{ number_format($pendingVerifications) }}</p>
                 <p class="mt-1 text-xs text-slate-500">Payment submissions to verify</p>
             </article>
-            <article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <p class="text-sm font-semibold text-slate-600">Verified payments</p>
-                <p class="mt-4 text-3xl font-black tracking-tight text-slate-900">{{ number_format($verifiedPayments) }}</p>
-                <p class="mt-1 text-xs text-slate-500">Approved payment submissions</p>
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-600">Verified this month</p>
+                <p data-testid="verified-payments-count" class="mt-4 text-3xl font-black tracking-tight text-slate-900">{{ number_format($verifiedPayments) }}</p>
+                <p class="mt-1 text-xs text-slate-500">Payment submissions approved this month</p>
             </article>
-            <article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-semibold text-slate-600">Revenue this month</p>
-                <p class="mt-4 text-2xl font-black tracking-tight text-slate-900">₱{{ number_format((float) $thisMonthRevenue, 2) }}</p>
+                <p data-testid="monthly-revenue" class="mt-4 text-2xl font-black tracking-tight text-slate-900">₱{{ number_format((float) $thisMonthRevenue, 2) }}</p>
                 <p class="mt-1 text-xs text-slate-500">From approved payments</p>
             </article>
         </div>

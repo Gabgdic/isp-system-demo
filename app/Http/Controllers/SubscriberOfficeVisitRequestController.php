@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SubscriberOfficeVisitRequest;
 use App\Services\PhilSmsService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class SubscriberOfficeVisitRequestController extends Controller
 {
@@ -18,23 +19,35 @@ class SubscriberOfficeVisitRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'action' => ['required', 'in:accept,reschedule'],
-            'visit_date' => ['required_if:action,reschedule', 'nullable', 'date', 'after_or_equal:today'],
+            'action' => ['required', 'in:accept,reschedule,reject'],
+            'visit_date' => [
+                Rule::requiredIf(fn () => $request->input('action') === 'reschedule'
+                    || ($request->input('action') === 'accept' && $officeVisitRequest->request_type === 'internet_fix')),
+                'nullable',
+                'date',
+                'after_or_equal:today',
+            ],
         ]);
 
         $rescheduled = $validated['action'] === 'reschedule';
+        $rejected = $validated['action'] === 'reject';
         $officeVisitRequest->update([
-            'status' => $rescheduled ? 'rescheduled' : 'accepted',
-            'visit_date' => $rescheduled
+            'status' => $rescheduled ? 'rescheduled' : ($rejected ? 'rejected' : 'accepted'),
+            'visit_date' => $rescheduled || (!$rejected && $officeVisitRequest->request_type === 'internet_fix')
                 ? $validated['visit_date']
                 : $officeVisitRequest->visit_date,
         ]);
 
-        $smsSent = $smsService->sendOfficeVisitRequestUpdate($officeVisitRequest->fresh('subscriber'), $rescheduled);
+        $smsSent = $smsService->sendOfficeVisitRequestUpdate(
+            $officeVisitRequest->fresh('subscriber'),
+            $officeVisitRequest->status
+        );
 
-        $message = $rescheduled
-            ? 'The office visit date was moved.'
-            : 'The office visit request was accepted.';
+        $message = match ($officeVisitRequest->status) {
+            'rescheduled' => 'The office visit date was moved.',
+            'rejected' => 'The office visit request was rejected.',
+            default => 'The office visit request was accepted.',
+        };
 
         if (!$smsSent) {
             return back()->with('warning', $message . ' SMS could not be sent; the update is available in the subscriber portal and is recorded in SMS logs.');

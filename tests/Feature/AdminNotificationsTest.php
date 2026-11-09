@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Hash;
 
 uses(RefreshDatabase::class);
 
-test('admin notifications include pending payments, payment reduction requests, and disconnections', function () {
+test('admin notifications include pending payments, subscriber requests, and disconnections', function () {
     $admin = User::create([
         'username' => 'admin-notifications-test',
         'password' => Hash::make('Password123!'),
@@ -50,6 +50,12 @@ test('admin notifications include pending payments, payment reduction requests, 
         'visit_date' => now()->addDays(3)->toDateString(),
         'status' => 'pending',
     ]);
+    SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'internet_fix',
+        'visit_date' => null,
+        'status' => 'pending',
+    ]);
 
     SubscriberDisconnection::create([
         'subscriber_id' => $subscriber->id,
@@ -61,10 +67,13 @@ test('admin notifications include pending payments, payment reduction requests, 
         ->assertOk()
         ->assertSee('id="adminNotificationsToggle"', false)
         ->assertSee('id="adminNotificationsPanel"', false)
-        ->assertSee('3 new notifications')
+        ->assertSee('admin-notification-unread-dot', false)
+        ->assertSee('4 new notifications')
         ->assertSee('New payment request')
         ->assertSee('Notification Subscriber submitted a payment request for PHP 500.00.')
         ->assertSee('New payment reduction request')
+        ->assertSee('New internet repair request')
+        ->assertSee('Notification Subscriber requested an internet repair.')
         ->assertSee('Subscriber disconnected')
         ->assertSee('Notification Subscriber was disconnected.');
 });

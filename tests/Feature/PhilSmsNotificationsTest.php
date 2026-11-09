@@ -213,6 +213,95 @@ test('moving an office visit request updates its date and sends an SMS', functio
     expect(SmsLog::where('notification_type', 'office_visit_rescheduled')->where('status', 'sent')->count())->toBe(1);
 });
 
+test('rejecting an office visit request updates its status and sends an SMS', function () {
+    configurePhilSms();
+    $subscriber = Subscriber::create([
+        'full_name' => 'Office Visit Subscriber',
+        'username' => 'office-visit-sms-rejected',
+        'password' => Hash::make('Password123!'),
+        'phone_number' => '09979875337',
+        'monthly_fee' => 100,
+        'status' => 'active',
+    ]);
+    $visitRequest = SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'payment_reduction',
+        'visit_date' => now()->addDays(3)->toDateString(),
+        'status' => 'pending',
+    ]);
+    $admin = User::create([
+        'username' => 'office-visit-reject-admin',
+        'password' => Hash::make('Password123!'),
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('reports.office-visit-requests.review', $visitRequest), [
+            'action' => 'reject',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'The office visit request was rejected. An SMS notification was sent.');
+
+    expect($visitRequest->fresh()->status)->toBe('rejected');
+    Http::assertSent(fn ($request) => $request['recipient'] === '639979875337'
+        && str_contains($request['message'], 'was not accepted')
+        && str_contains($request['message'], 'contact our office'));
+    expect(SmsLog::where('notification_type', 'office_visit_rejected')->where('status', 'sent')->count())->toBe(1);
+});
+
+test('admin schedules an internet repair request and notifies the subscriber', function () {
+    configurePhilSms();
+    $subscriber = Subscriber::create([
+        'full_name' => 'Internet Fix Subscriber',
+        'username' => 'internet-fix-sms-schedule',
+        'password' => Hash::make('Password123!'),
+        'phone_number' => '09979875337',
+        'monthly_fee' => 100,
+        'status' => 'active',
+    ]);
+    $visitRequest = SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'internet_fix',
+        'visit_date' => null,
+        'status' => 'pending',
+    ]);
+    $repairDate = now()->addDays(5)->toDateString();
+    $admin = User::create([
+        'username' => 'internet-fix-schedule-admin',
+        'password' => Hash::make('Password123!'),
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->from(route('reports'))
+        ->post(route('reports.office-visit-requests.review', $visitRequest), [
+            'action' => 'accept',
+        ])
+        ->assertRedirect(route('reports'))
+        ->assertSessionHasErrors('visit_date');
+
+    $this->actingAs($admin)
+        ->post(route('reports.office-visit-requests.review', $visitRequest), [
+            'action' => 'accept',
+            'visit_date' => $repairDate,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($visitRequest->fresh()->status)->toBe('accepted')
+        ->and($visitRequest->fresh()->visit_date->toDateString())->toBe($repairDate);
+    Http::assertSent(fn ($request) => $request['recipient'] === '639979875337'
+        && str_contains($request['message'], 'internet repair request is scheduled for ' . Carbon::parse($repairDate)->format('M d, Y')));
+
+    $this->withSession([
+        'subscriber_logged_in' => true,
+        'subscriber_id' => $subscriber->id,
+    ])->get(route('subscriber.portal'))
+        ->assertOk()
+        ->assertSee('Internet repair request Accepted')
+        ->assertSee('Your internet repair is scheduled for ' . Carbon::parse($repairDate)->format('M d, Y'));
+});
+
 test('recording a manual payment sends an approval SMS', function () {
     configurePhilSms();
     $subscriber = Subscriber::create([

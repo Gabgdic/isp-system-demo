@@ -57,14 +57,22 @@ class AppServiceProvider extends ServiceProvider
                 ->limit(20)
                 ->get()
                 ->each(function (SubscriberOfficeVisitRequest $request) use ($notifications): void {
+                    $isInternetFix = $request->request_type === 'internet_fix';
                     $notifications->push([
                         'id' => "office-visit-request:{$request->id}:{$request->updated_at->timestamp}",
-                        'title' => 'New payment reduction request',
-                        'message' => sprintf(
-                            '%s requested an ISP office visit for %s.',
-                            $request->subscriber?->full_name ?? 'A subscriber',
-                            $request->visit_date->format('M d, Y')
-                        ),
+                        'title' => $isInternetFix
+                            ? 'New internet repair request'
+                            : 'New payment reduction request',
+                        'message' => $isInternetFix
+                            ? sprintf(
+                                '%s requested an internet repair.',
+                                $request->subscriber?->full_name ?? 'A subscriber'
+                            )
+                            : sprintf(
+                                '%s requested an ISP office visit for %s.',
+                                $request->subscriber?->full_name ?? 'A subscriber',
+                                $request->visit_date->format('M d, Y')
+                            ),
                         'date' => $request->created_at,
                         'url' => route('reports', ['show_requests' => 1]),
                     ]);

@@ -24,20 +24,27 @@
                 type="button"
                 onclick="openOfficeVisitRequestsModal()"
                 aria-haspopup="dialog"
-                class="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                class="px-3 py-1.5 rounded-lg border border-yellow-500 bg-yellow-400 text-xs font-bold text-gray-950 shadow-sm hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
             >Subscriber Requests ({{ $officeVisitRequests->where('status', 'pending')->count() }})</button>
             <form method="GET" action="{{ route('reports') }}">
                 <input type="hidden" name="search" value="{{ $search }}">
                 <select
                     name="period"
                     onchange="this.form.submit()"
-                    aria-label="Filter reports by month"
+                    aria-label="Filter reports by year or month"
                     class="min-w-[6rem] border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:ring-2 focus:ring-slate-300 outline-none"
                 >
                     <option value="overall" {{ $period === 'overall' ? 'selected' : '' }}>Overall</option>
+                    <optgroup label="Years">
+                        @foreach($yearOptions as $year)
+                            <option value="{{ $year }}" {{ $period === $year ? 'selected' : '' }}>{{ $year }}</option>
+                        @endforeach
+                    </optgroup>
+                    <optgroup label="Months">
                     @foreach($monthOptions as $monthValue => $monthLabel)
                         <option value="{{ $monthValue }}" {{ $period === $monthValue ? 'selected' : '' }}>{{ $monthLabel }}</option>
                     @endforeach
+                    </optgroup>
                 </select>
             </form>
         </div>
@@ -195,55 +202,90 @@
 </div>
 
 <div id="officeVisitRequestsModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="office-visit-requests-title" onclick="if (event.target === this) closeOfficeVisitRequestsModal()">
-    <div class="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
-        <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+    <div class="relative bg-white w-full max-w-6xl rounded-xl shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <div>
-                <h3 id="office-visit-requests-title" class="text-sm font-bold text-slate-900">Subscriber Office Visit Requests</h3>
-                <p class="text-xs text-slate-500">Accept the requested date or move the visit to another date. Subscribers are notified by SMS and in their portal.</p>
+                <h3 id="office-visit-requests-title" class="text-sm font-bold text-slate-900">Subscriber Service Requests</h3>
+                <p class="text-[11px] text-slate-500">Review requests below. Subscribers are notified by SMS and in their portal.</p>
             </div>
             <button type="button" onclick="closeOfficeVisitRequestsModal()" aria-label="Close subscriber requests" class="w-7 h-7 shrink-0 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs">✕</button>
         </div>
-        <div class="p-4 overflow-y-auto space-y-3">
-            @forelse($officeVisitRequests as $officeVisitRequest)
-                <article class="rounded-xl border border-slate-200 p-4">
-                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                        <div class="text-xs text-slate-700 space-y-1">
-                            <p class="font-bold text-sm text-slate-900">{{ $officeVisitRequest->subscriber->full_name ?? 'Subscriber unavailable' }}</p>
-                            <p>Username: {{ $officeVisitRequest->subscriber->username ?? 'N/A' }}</p>
-                            <p>Request: <span class="font-semibold">Request payment reduction</span></p>
-                            <p>Visit date: <span class="font-semibold">{{ $officeVisitRequest->visit_date->format('M d, Y') }}</span></p>
-                            <p>Submitted: {{ $officeVisitRequest->created_at->format('M d, Y g:i A') }}</p>
-                            <p>Status:
-                                <span class="font-bold {{ $officeVisitRequest->status === 'pending' ? 'text-amber-700' : ($officeVisitRequest->status === 'accepted' ? 'text-emerald-700' : 'text-blue-700') }}">
-                                    {{ ucfirst($officeVisitRequest->status) }}
-                                </span>
-                            </p>
-                        </div>
-                        @if($officeVisitRequest->status === 'pending')
-                            <div class="flex flex-col gap-2 sm:min-w-64">
-                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}">
-                                    @csrf
-                                    <input type="hidden" name="action" value="accept">
-                                    <button type="submit" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">
-                                        Accept requested date
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}" class="space-y-2">
-                                    @csrf
-                                    <input type="hidden" name="action" value="reschedule">
-                                    <label class="sr-only" for="visit-date-{{ $officeVisitRequest->id }}">New visit date</label>
-                                    <input id="visit-date-{{ $officeVisitRequest->id }}" type="date" name="visit_date" min="{{ today()->toDateString() }}" required class="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs">
-                                    <button type="submit" class="w-full rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800">
-                                        Move visit to this date
-                                    </button>
-                                </form>
-                            </div>
-                        @endif
-                    </div>
-                </article>
-            @empty
-                <p class="py-8 text-center text-sm text-slate-500">There are no subscriber requests yet.</p>
-            @endforelse
+        <div class="overflow-auto">
+            @if($officeVisitRequests->isEmpty())
+                <p class="px-4 py-8 text-center text-xs text-slate-500">There are no subscriber requests yet.</p>
+            @else
+                <table class="w-full min-w-[900px] border-collapse text-left text-[11px]">
+                    <thead class="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                        <tr>
+                            <th scope="col" class="px-3 py-2.5">Subscriber</th>
+                            <th scope="col" class="px-3 py-2.5">Request</th>
+                            <th scope="col" class="px-3 py-2.5">Visit / repair date</th>
+                            <th scope="col" class="px-3 py-2.5">Submitted</th>
+                            <th scope="col" class="px-3 py-2.5">Status</th>
+                            <th scope="col" class="px-3 py-2.5">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach($officeVisitRequests as $officeVisitRequest)
+                            <tr class="align-top hover:bg-slate-50">
+                                <td class="px-3 py-2.5">
+                                    <p class="font-semibold text-slate-900">{{ $officeVisitRequest->subscriber->full_name ?? 'Subscriber unavailable' }}</p>
+                                    <p class="mt-0.5 text-[10px] text-slate-500">{{ $officeVisitRequest->subscriber->username ?? 'N/A' }}</p>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-slate-700">
+                                    {{ $officeVisitRequest->request_type === 'internet_fix' ? 'Internet repair' : 'Payment reduction' }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 font-medium text-slate-700">
+                                    {{ $officeVisitRequest->visit_date?->format('M d, Y') ?? 'Needs scheduling' }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">{{ $officeVisitRequest->created_at->format('M d, Y g:i A') }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="office-visit-status office-visit-status-{{ $officeVisitRequest->status }}">
+                                        {{ ucfirst($officeVisitRequest->status) }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    @if($officeVisitRequest->status === 'pending')
+                                        <div class="flex min-w-[330px] flex-wrap items-center gap-1.5">
+                                            @if($officeVisitRequest->request_type === 'internet_fix')
+                                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}" class="flex items-center gap-1.5">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="accept">
+                                                    <label class="sr-only" for="repair-date-{{ $officeVisitRequest->id }}">Choose repair date</label>
+                                                    <input id="repair-date-{{ $officeVisitRequest->id }}" type="date" name="visit_date" min="{{ today()->toDateString() }}" required class="w-32 rounded-md border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700">
+                                                    <button type="submit" class="whitespace-nowrap rounded-md bg-emerald-700 px-2 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-800">Schedule fix</button>
+                                                </form>
+                                            @else
+                                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="accept">
+                                                    <button type="submit" class="rounded-md bg-emerald-700 px-2 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-800">Accept</button>
+                                                </form>
+                                            @endif
+                                            <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}">
+                                                @csrf
+                                                <input type="hidden" name="action" value="reject">
+                                                <button type="submit" class="rounded-md border border-red-200 bg-white px-2 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-50">Reject</button>
+                                            </form>
+                                            @if($officeVisitRequest->request_type !== 'internet_fix')
+                                                <form method="POST" action="{{ route('reports.office-visit-requests.review', $officeVisitRequest) }}" class="flex items-center gap-1.5">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="reschedule">
+                                                    <label class="sr-only" for="visit-date-{{ $officeVisitRequest->id }}">New visit date</label>
+                                                    <input id="visit-date-{{ $officeVisitRequest->id }}" type="date" name="visit_date" min="{{ today()->toDateString() }}" required class="w-32 rounded-md border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700">
+                                                    <button type="submit" class="whitespace-nowrap rounded-md bg-blue-700 px-2 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800">Move date</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="text-[10px] text-slate-400">Reviewed</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
         </div>
     </div>
 </div>
@@ -257,6 +299,55 @@
 ></iframe>
 
 <style>
+    .office-visit-status {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        padding: 0.2rem 0.5rem;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .office-visit-status-pending {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .office-visit-status-accepted {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+
+    .office-visit-status-rejected {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .office-visit-status-rescheduled {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    html.dark .office-visit-status-pending {
+        background-color: #352e1b;
+        color: #fcd34d;
+    }
+
+    html.dark .office-visit-status-accepted {
+        background-color: #183126;
+        color: #86efac;
+    }
+
+    html.dark .office-visit-status-rejected {
+        background-color: #352123;
+        color: #fca5a5;
+    }
+
+    html.dark .office-visit-status-rescheduled {
+        background-color: #1e3a5f;
+        color: #bfdbfe;
+    }
+
     .animate-fadeIn {
         animation: fadeIn 0.45s ease-in-out;
     }
@@ -450,6 +541,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (new URLSearchParams(window.location.search).get('show_requests') === '1') {
         window.openOfficeVisitRequestsModal();
+        const url = new URL(window.location.href);
+        url.searchParams.delete('show_requests');
+        window.history.replaceState(
+            window.history.state,
+            '',
+            `${url.pathname}${url.search}${url.hash}`
+        );
     }
 
     window.printPaidBills = function () {

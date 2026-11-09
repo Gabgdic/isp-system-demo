@@ -189,16 +189,26 @@
                             <div class="max-h-[65vh] overflow-y-auto divide-y divide-slate-100">
                                 @foreach($officeVisitRequests as $officeVisitRequest)
                                     <div class="subscriber-notification-item px-4 py-3 text-xs" data-notification-id="office-visit:{{ $officeVisitRequest->id }}:{{ $officeVisitRequest->status }}:{{ $officeVisitRequest->updated_at->timestamp }}">
-                                        <p class="font-bold {{ $officeVisitRequest->status === 'accepted' ? 'text-emerald-700' : ($officeVisitRequest->status === 'rescheduled' ? 'text-blue-700' : 'text-amber-700') }}">
-                                            Payment reduction request {{ ucfirst($officeVisitRequest->status) }}
+                                        <p class="font-bold {{ $officeVisitRequest->status === 'accepted' ? 'text-emerald-700' : ($officeVisitRequest->status === 'rescheduled' ? 'text-blue-700' : ($officeVisitRequest->status === 'rejected' ? 'text-red-700' : 'text-amber-700')) }}">
+                                            {{ $officeVisitRequest->request_type === 'internet_fix' ? 'Internet repair request' : 'Payment reduction request' }} {{ ucfirst($officeVisitRequest->status) }}
                                         </p>
                                         <p class="mt-1 leading-relaxed text-slate-600">
-                                            @if($officeVisitRequest->status === 'accepted')
+                                            @if($officeVisitRequest->request_type === 'internet_fix' && $officeVisitRequest->status === 'accepted')
+                                                Your internet repair is scheduled for {{ $officeVisitRequest->visit_date->format('M d, Y') }}.
+                                            @elseif($officeVisitRequest->request_type === 'internet_fix' && $officeVisitRequest->status === 'rescheduled')
+                                                Your internet repair visit has been moved to {{ $officeVisitRequest->visit_date->format('M d, Y') }}.
+                                            @elseif($officeVisitRequest->status === 'accepted')
                                                 Please visit the ISP office on {{ $officeVisitRequest->visit_date->format('M d, Y') }} and bring or show your SOA.
                                             @elseif($officeVisitRequest->status === 'rescheduled')
                                                 Your new ISP office visit date is {{ $officeVisitRequest->visit_date->format('M d, Y') }}. Bring or show your SOA.
+                                            @elseif($officeVisitRequest->status === 'rejected')
+                                                Your request was not accepted. Please contact the ISP office if you need assistance.
                                             @else
-                                                Your request is awaiting review. Requested visit date: {{ $officeVisitRequest->visit_date->format('M d, Y') }}.
+                                                @if($officeVisitRequest->visit_date)
+                                                    Your request is awaiting review. Requested visit date: {{ $officeVisitRequest->visit_date->format('M d, Y') }}.
+                                                @else
+                                                    Your request is awaiting review. The ISP office will contact you with a schedule.
+                                                @endif
                                             @endif
                                         </p>
                                         <p class="mt-1 text-[10px] text-slate-400">{{ $officeVisitRequest->created_at->format('M d, Y g:i A') }}</p>
@@ -327,7 +337,7 @@
                     <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md group-hover:scale-105 group-active:scale-95 transition-all p-3.5">
                         <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zM12 15v3m-1.5-1.5h3"/></svg>
                     </div>
-                    <span class="text-xs font-bold text-slate-700 mt-2 leading-tight">Request Visit</span>
+                    <span class="text-xs font-bold text-slate-700 mt-2 leading-tight">Help</span>
                 </button>
             </div>
 
@@ -356,7 +366,7 @@
                     <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
                         <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Due Date</span>
                         <span class="text-sm font-extrabold text-slate-800 mt-1 block">
-                            {{ isset($currentBill) && $currentBill && $currentBill->due_date ? \Carbon\Carbon::parse($currentBill->due_date)->format('M d, Y') : 'N/A' }}
+                            {{ isset($currentBill) && $currentBill && $currentBill->status !== 'paid' && $currentBill->due_date ? \Carbon\Carbon::parse($currentBill->due_date)->format('M d, Y') : 'N/A' }}
                         </span>
                     </div>
                 </div>
@@ -466,6 +476,9 @@
                         @php
                             $billStatus = strtolower($bill->status ?? 'unpaid');
                             $billingMonth = \Carbon\Carbon::create($bill->billing_year, $bill->billing_month, 1)->format('F Y');
+                            $dueDate = $billStatus !== 'paid' && $bill->due_date
+                                ? \Carbon\Carbon::parse($bill->due_date)->format('M d, Y')
+                                : 'N/A';
                             
                             $allocation = $bill->paymentAllocations->first();
                             $submission = $allocation ? $allocation->paymentSubmission : null;
@@ -480,7 +493,7 @@
                                 <div class="min-w-0">
                                     <h4 class="text-sm font-extrabold text-slate-800">{{ $billingMonth }}</h4>
                                     <p class="text-[11px] text-slate-400 mt-0.5">
-                                        Due: {{ $bill->due_date ? \Carbon\Carbon::parse($bill->due_date)->format('M d, Y') : 'N/A' }}
+                                        Due: {{ $dueDate }}
                                     </p>
                                 </div>
                                 <div class="sm:text-right">
@@ -777,39 +790,65 @@
     </div>
 
     @endif
-    <!-- MODAL: OFFICE VISIT REQUEST -->
+    <!-- MODAL: SUBSCRIBER SERVICE REQUEST -->
     <div id="officeVisitRequestModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="officeVisitRequestTitle">
         <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeOfficeVisitRequestModal()"></div>
         <div class="relative min-h-screen flex items-center justify-center p-4">
             <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-6">
                 <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 mb-4">
                     <div>
-                        <h2 id="officeVisitRequestTitle" class="text-lg font-bold text-slate-900">Request an ISP Office Visit</h2>
-                        <p class="text-xs text-slate-500 mt-1">Choose a date to visit the ISP office.</p>
+                        <h2 id="officeVisitRequestTitle" class="text-lg font-bold text-slate-900">Request ISP assistance</h2>
+                        <p class="text-xs text-slate-500 mt-1">Choose the type of assistance you need.</p>
                     </div>
                     <button type="button" aria-label="Close office visit request" onclick="closeOfficeVisitRequestModal()" class="w-8 h-8 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold">✕</button>
                 </div>
 
-                <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-                    <p class="font-bold">This request requires an in-person office visit.</p>
-                    <p class="mt-1">Please visit the ISP office on your selected date and bring or show your Statement of Account (SOA) to discuss a payment reduction. Submitting this request does not guarantee a discount.</p>
-                </div>
-
                 <form method="POST" action="{{ route('subscriber.office-visit-requests.store') }}" class="space-y-4">
                     @csrf
+                    @php
+                        $availableRequestTypes = collect(['payment_reduction', 'internet_fix'])
+                            ->reject(fn ($type) => in_array($type, $pendingRequestTypes, true))
+                            ->values();
+                        $selectedRequestType = old('request_type');
+                        if (!in_array($selectedRequestType, $availableRequestTypes->all(), true)) {
+                            $selectedRequestType = $availableRequestTypes->first();
+                        }
+                    @endphp
                     <div>
                         <label for="officeVisitRequestType" class="block text-xs font-bold text-slate-700 mb-1">Request</label>
-                        <select id="officeVisitRequestType" name="request_type" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
-                            <option value="payment_reduction">Request payment reduction</option>
+                        <select id="officeVisitRequestType" name="request_type" required @disabled($availableRequestTypes->isEmpty()) class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+                            @if($availableRequestTypes->isEmpty())
+                                <option value="" selected>Both request types are pending</option>
+                            @else
+                                <option value="payment_reduction" @selected($selectedRequestType === 'payment_reduction') @disabled(in_array('payment_reduction', $pendingRequestTypes, true))>
+                                    Request payment reduction at the office{{ in_array('payment_reduction', $pendingRequestTypes, true) ? ' (Pending)' : '' }}
+                                </option>
+                                <option value="internet_fix" @selected($selectedRequestType === 'internet_fix') @disabled(in_array('internet_fix', $pendingRequestTypes, true))>
+                                    Request an internet fix{{ in_array('internet_fix', $pendingRequestTypes, true) ? ' (Pending)' : '' }}
+                                </option>
+                            @endif
                         </select>
                     </div>
-                    <div>
+                    <div id="officeVisitDateGroup" class="{{ $selectedRequestType === 'payment_reduction' ? '' : 'hidden' }}">
                         <label for="officeVisitDate" class="block text-xs font-bold text-slate-700 mb-1">Preferred office visit date</label>
-                        <input id="officeVisitDate" type="date" name="visit_date" min="{{ today()->toDateString() }}" value="{{ old('visit_date') }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+                        <input id="officeVisitDate" type="date" name="visit_date" min="{{ today()->toDateString() }}" value="{{ old('visit_date') }}" @required($selectedRequestType === 'payment_reduction') class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+                    </div>
+                    <p id="pendingRequestMessage" class="{{ $availableRequestTypes->isEmpty() ? '' : 'hidden' }} rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                        You already have a pending request for each available request type. Please wait for the ISP office to review them before submitting again.
+                    </p>
+                    <div id="officeVisitRequestHelp" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                        <p id="paymentReductionHelp">
+                            <span class="font-bold">An in-person office visit is required.</span>
+                            Please bring or show your Statement of Account (SOA) to discuss a payment reduction. Submitting this request does not guarantee a discount.
+                        </p>
+                        <p id="internetFixHelp" class="{{ old('request_type') === 'internet_fix' ? '' : 'hidden' }}">
+                            <span class="font-bold">Need help with your connection?</span>
+                            Submit the request and the ISP office will choose a repair schedule and contact you.
+                        </p>
                     </div>
                     <div class="flex gap-2 pt-1">
                         <button type="button" onclick="closeOfficeVisitRequestModal()" class="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
-                        <button type="submit" class="flex-1 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white shadow">Submit Request</button>
+                        <button id="submitOfficeVisitRequest" type="submit" @disabled($availableRequestTypes->isEmpty()) class="flex-1 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white shadow disabled:cursor-not-allowed disabled:opacity-50">Submit Request</button>
                     </div>
                 </form>
             </div>
@@ -1217,6 +1256,29 @@
         function closeOfficeVisitRequestModal() {
             document.getElementById('officeVisitRequestModal')?.classList.add('hidden');
         }
+
+        const officeVisitRequestType = document.getElementById('officeVisitRequestType');
+        const officeVisitDateGroup = document.getElementById('officeVisitDateGroup');
+        const officeVisitDate = document.getElementById('officeVisitDate');
+        const paymentReductionHelp = document.getElementById('paymentReductionHelp');
+        const internetFixHelp = document.getElementById('internetFixHelp');
+        const pendingRequestMessage = document.getElementById('pendingRequestMessage');
+        const submitOfficeVisitRequest = document.getElementById('submitOfficeVisitRequest');
+        const pendingOfficeVisitRequestTypes = @json($pendingRequestTypes);
+
+        function updateOfficeVisitRequestFields() {
+            const isPaymentReduction = officeVisitRequestType.value === 'payment_reduction';
+            const isPending = pendingOfficeVisitRequestTypes.includes(officeVisitRequestType.value);
+            officeVisitDateGroup.classList.toggle('hidden', !isPaymentReduction);
+            officeVisitDate.required = isPaymentReduction;
+            paymentReductionHelp.classList.toggle('hidden', !isPaymentReduction);
+            internetFixHelp.classList.toggle('hidden', isPaymentReduction || !officeVisitRequestType.value);
+            pendingRequestMessage.classList.toggle('hidden', !isPending && officeVisitRequestType.value !== '');
+            submitOfficeVisitRequest.disabled = isPending || officeVisitRequestType.value === '';
+        }
+
+        officeVisitRequestType.addEventListener('change', updateOfficeVisitRequestFields);
+        updateOfficeVisitRequestFields();
 
         function openEditProfileModal() {
             document.getElementById('editProfileModal')?.classList.remove('hidden');

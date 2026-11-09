@@ -8,6 +8,7 @@ use App\Models\SystemSetting;
 use App\Models\PaymentSubmission;
 use App\Models\SubscriberOfficeVisitRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -39,6 +40,7 @@ class SubscriberPortalController extends Controller
             $bill->due_date = $dueMonth
                 ->day(min($subscriber->created_at->day, $dueMonth->daysInMonth))
                 ->startOfDay();
+            /** @var BillingRecord $bill */
             $bill->save();
         }
 
@@ -72,6 +74,12 @@ class SubscriberPortalController extends Controller
         $officeVisitRequests = $subscriber->officeVisitRequests()
             ->latest()
             ->get();
+        $pendingRequestTypes = $officeVisitRequests
+            ->where('status', 'pending')
+            ->pluck('request_type')
+            ->unique()
+            ->values()
+            ->all();
 
         $payableBills = $billingRecords->filter(fn($bill) => in_array($bill->status, ['unpaid', 'overdue']));
         $pendingBills = $billingRecords->filter(fn($bill) => $bill->status === 'pending');
@@ -94,6 +102,7 @@ class SubscriberPortalController extends Controller
             'rejectedPayments',
             'recentlyAcceptedPayments',
             'officeVisitRequests',
+            'pendingRequestTypes',
             'payableBills',
             'pendingBills',
             'outstandingBalance',
@@ -166,20 +175,52 @@ class SubscriberPortalController extends Controller
     public function storeOfficeVisitRequest(Request $request)
     {
         $validated = $request->validate([
-            'request_type' => ['required', Rule::in(['payment_reduction'])],
-            'visit_date' => ['required', 'date', 'after_or_equal:today'],
+            'request_type' => ['required', Rule::in(['payment_reduction', 'internet_fix'])],
+            'visit_date' => [
+                Rule::excludeIf(fn () => $request->input('request_type') !== 'payment_reduction'),
+                Rule::requiredIf(fn () => $request->input('request_type') === 'payment_reduction'),
+                'nullable',
+                'date',
+                'after_or_equal:today',
+            ],
         ]);
 
-        $subscriber = Subscriber::findOrFail(session('subscriber_id'));
-        SubscriberOfficeVisitRequest::create([
-            'subscriber_id' => $subscriber->id,
-            'request_type' => $validated['request_type'],
-            'visit_date' => $validated['visit_date'],
-            'status' => 'pending',
-        ]);
+        $created = DB::transaction(function () use ($validated): bool {
+            $subscriber = Subscriber::query()
+                ->lockForUpdate()
+                ->findOrFail(session('subscriber_id'));
+
+            if ($subscriber->officeVisitRequests()
+                ->where('request_type', $validated['request_type'])
+                ->where('status', 'pending')
+                ->exists()) {
+                return false;
+            }
+
+            $subscriber->officeVisitRequests()->create([
+                'request_type' => $validated['request_type'],
+                'visit_date' => $validated['request_type'] === 'payment_reduction'
+                    ? $validated['visit_date']
+                    : null,
+                'status' => 'pending',
+            ]);
+
+            return true;
+        });
+
+        if (!$created) {
+            return back()
+                ->withInput()
+                ->with('error', 'You already have a pending request of this type. Please wait for it to be reviewed before submitting another.');
+        }
 
         return redirect()->route('subscriber.portal')
-            ->with('success', 'Your office visit request has been submitted. Please visit the ISP office on your selected date and bring your SOA to request a payment reduction.');
+            ->with(
+                'success',
+                $validated['request_type'] === 'payment_reduction'
+                    ? 'Your payment reduction request has been submitted. Please visit the ISP office on your selected date and bring your SOA.'
+                    : 'Your internet repair request has been submitted. The ISP office will contact you with a schedule.'
+            );
     }
 
     /**

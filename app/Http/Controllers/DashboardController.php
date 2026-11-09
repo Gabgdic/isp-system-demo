@@ -30,11 +30,11 @@ class DashboardController extends Controller
             ->whereIn('status', ['unpaid', 'overdue'])
             ->count();
         $pendingVerifications = PaymentSubmission::where('status', 'pending')->count();
-        $verifiedPayments = PaymentSubmission::where('status', 'approved')->count();
-        $thisMonthRevenue = PaymentSubmission::where('status', 'approved')
+        $thisMonthApprovedPayments = PaymentSubmission::where('status', 'approved')
             ->whereYear('reviewed_at', now()->year)
-            ->whereMonth('reviewed_at', now()->month)
-            ->sum('amount_paid');
+            ->whereMonth('reviewed_at', now()->month);
+        $verifiedPayments = (clone $thisMonthApprovedPayments)->count();
+        $thisMonthRevenue = $thisMonthApprovedPayments->sum('amount_paid');
 
         $systemSetting = SystemSetting::first();
 

@@ -46,6 +46,12 @@ test('reports SMS card opens period-filtered notification logs with subscriber a
         'visit_date' => now()->addDays(3)->toDateString(),
         'status' => 'pending',
     ]);
+    SubscriberOfficeVisitRequest::create([
+        'subscriber_id' => $subscriber->id,
+        'request_type' => 'internet_fix',
+        'visit_date' => null,
+        'status' => 'pending',
+    ]);
 
     SmsLog::create([
         'recipient_type' => 'subscriber',
@@ -62,11 +68,16 @@ test('reports SMS card opens period-filtered notification logs with subscriber a
         ->assertOk()
         ->assertSee('SMS Notification Logs')
         ->assertSee('onclick="openSmsLogsModal()"', false)
-        ->assertSee('Subscriber Requests (1)')
+        ->assertSee('Subscriber Requests (2)')
         ->assertSee('onclick="openOfficeVisitRequestsModal()"', false)
-        ->assertSee('Subscriber Office Visit Requests')
-        ->assertSee('Accept requested date')
-        ->assertSee('Move visit to this date')
+        ->assertSee('Subscriber Service Requests')
+        ->assertSee('>Accept</button>', false)
+        ->assertSee('>Reject</button>', false)
+        ->assertSee('>Move date</button>', false)
+        ->assertSee('Internet repair')
+        ->assertSee('Needs scheduling')
+        ->assertSee('>Schedule fix</button>', false)
+        ->assertSee('office-visit-status-pending', false)
         ->assertSee('Print / Save as PDF')
         ->assertSee('onclick="printSmsLogs()"', false)
         ->assertSee('id="smsLogsPrintFrame"', false)

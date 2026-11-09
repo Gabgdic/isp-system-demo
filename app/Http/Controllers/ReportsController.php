@@ -24,7 +24,8 @@ class ReportsController extends Controller
             $period = 'overall';
         }
         $selectedMonth = $this->resolveSelectedMonth($period);
-        if ($period !== 'overall' && $selectedMonth === null) {
+        $selectedYear = $this->resolveSelectedYear($period);
+        if ($period !== 'overall' && $selectedMonth === null && $selectedYear === null) {
             $period = 'overall';
         }
 
@@ -74,6 +75,11 @@ class ReportsController extends Controller
             $monthOptions[$monthCursor->format('Y-m')] = $monthCursor->format('M Y');
             $monthCursor->addMonth();
         }
+        $yearOptions = collect(array_keys($monthOptions))
+            ->map(fn (string $month): string => substr($month, 0, 4))
+            ->unique()
+            ->sortDesc()
+            ->values();
 
         $approvedPaymentsQuery = PaymentSubmission::where('status', 'approved');
         $pendingPaymentsQuery = PaymentSubmission::where('status', 'pending');
@@ -88,16 +94,20 @@ class ReportsController extends Controller
             $billingMonthQuery
                 ->where('billing_year', $selectedMonth->year)
                 ->where('billing_month', $selectedMonth->month);
+        } elseif ($selectedYear) {
+            $approvedPaymentsQuery->whereYear('reviewed_at', $selectedYear);
+            $pendingPaymentsQuery->whereYear('created_at', $selectedYear);
+            $billingMonthQuery->where('billing_year', $selectedYear);
         }
-        $smsLogs = $this->smsLogsForPeriod($selectedMonth);
+        $smsLogs = $this->smsLogsForPeriod($selectedMonth, $selectedYear);
         $officeVisitRequests = SubscriberOfficeVisitRequest::with('subscriber')
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
             ->orderByDesc('created_at')
             ->get();
-        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? ($selectedYear ?? 'Overall');
 
         $search = trim($request->input('search', ''));
-        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $search);
+        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $selectedYear, $search);
 
         $perPage = 10;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
@@ -130,11 +140,17 @@ class ReportsController extends Controller
             ->whereIn('status', ['unpaid', 'overdue'])
             ->count();
 
-        $chartMonths = $selectedMonth
-            ? collect([$selectedMonth->copy()])
-            : collect(array_keys($monthOptions))->map(
+        if ($selectedMonth) {
+            $chartMonths = collect([$selectedMonth->copy()]);
+        } elseif ($selectedYear) {
+            $lastMonth = $selectedYear === now()->year ? now()->month : 12;
+            $chartMonths = collect(range(1, $lastMonth))
+                ->map(fn (int $month) => Carbon::create($selectedYear, $month, 1));
+        } else {
+            $chartMonths = collect(array_keys($monthOptions))->map(
                 fn ($month) => Carbon::createFromFormat('!Y-m', $month)
             );
+        }
 
         $trendLabels = [];
         $trendRevenue = [];
@@ -155,6 +171,7 @@ class ReportsController extends Controller
         return view('admin.reports', compact(
             'period',
             'monthOptions',
+            'yearOptions',
             'search',
             'paidBillRecords',
             'totalRevenue',
@@ -180,8 +197,9 @@ class ReportsController extends Controller
             $period = 'overall';
         }
         $selectedMonth = $this->resolveSelectedMonth($period);
-        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
-        $smsLogs = $this->smsLogsForPeriod($selectedMonth);
+        $selectedYear = $this->resolveSelectedYear($period);
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? ($selectedYear ?? 'Overall');
+        $smsLogs = $this->smsLogsForPeriod($selectedMonth, $selectedYear);
 
         return view('admin.partials.sms_logs_print', compact('smsLogs', 'reportPeriodLabel'));
     }
@@ -198,9 +216,10 @@ class ReportsController extends Controller
         }
 
         $selectedMonth = $this->resolveSelectedMonth($period);
-        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? 'Overall';
+        $selectedYear = $this->resolveSelectedYear($period);
+        $reportPeriodLabel = $selectedMonth?->format('F Y') ?? ($selectedYear ?? 'Overall');
         $search = trim($request->input('search', ''));
-        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $search);
+        $paidBillRows = $this->paidBillRowsForPeriod($selectedMonth, $selectedYear, $search);
 
         return view('admin.partials.paid_bills_print', compact('paidBillRows', 'reportPeriodLabel'));
     }
@@ -218,21 +237,36 @@ class ReportsController extends Controller
             : $selectedMonth;
     }
 
-    private function smsLogsForPeriod(?Carbon $selectedMonth)
+    private function resolveSelectedYear(string $period): ?int
+    {
+        if (!preg_match('/^\d{4}$/', $period)) {
+            return null;
+        }
+
+        $selectedYear = (int) $period;
+
+        return $selectedYear <= now()->year ? $selectedYear : null;
+    }
+
+    private function smsLogsForPeriod(?Carbon $selectedMonth, ?int $selectedYear)
     {
         $query = SmsLog::with('subscriber')
             ->orderByDesc('sent_at')
             ->orderByDesc('created_at');
 
-        if ($selectedMonth) {
-            $monthStart = $selectedMonth->copy()->startOfMonth();
-            $monthEnd = $selectedMonth->copy()->endOfMonth();
+        if ($selectedMonth || $selectedYear) {
+            $periodStart = $selectedMonth
+                ? $selectedMonth->copy()->startOfMonth()
+                : Carbon::create($selectedYear, 1, 1)->startOfYear();
+            $periodEnd = $selectedMonth
+                ? $selectedMonth->copy()->endOfMonth()
+                : Carbon::create($selectedYear, 12, 31)->endOfDay();
 
-            $query->where(function ($query) use ($monthStart, $monthEnd) {
-                $query->whereBetween('sent_at', [$monthStart, $monthEnd])
-                    ->orWhere(function ($query) use ($monthStart, $monthEnd) {
+            $query->where(function ($query) use ($periodStart, $periodEnd) {
+                $query->whereBetween('sent_at', [$periodStart, $periodEnd])
+                    ->orWhere(function ($query) use ($periodStart, $periodEnd) {
                         $query->whereNull('sent_at')
-                            ->whereBetween('created_at', [$monthStart, $monthEnd]);
+                            ->whereBetween('created_at', [$periodStart, $periodEnd]);
                     });
             });
         }
@@ -240,7 +274,7 @@ class ReportsController extends Controller
         return $query->get();
     }
 
-    private function paidBillRowsForPeriod(?Carbon $selectedMonth, string $search)
+    private function paidBillRowsForPeriod(?Carbon $selectedMonth, ?int $selectedYear, string $search)
     {
         $paidPaymentRows = PaymentSubmission::with([
             'subscriber',
@@ -249,7 +283,7 @@ class ReportsController extends Controller
         ])
             ->where('status', 'approved')
             ->get()
-            ->map(function (PaymentSubmission $payment) use ($selectedMonth, $search) {
+            ->map(function (PaymentSubmission $payment) use ($selectedMonth, $selectedYear, $search) {
                 $bills = $payment->billingAllocations
                     ->filter(fn ($allocation) => $allocation->billingRecord?->status === 'paid')
                     ->map(fn ($allocation) => (object) [
@@ -272,6 +306,11 @@ class ReportsController extends Controller
                 if ($selectedMonth && !$bills->contains(fn ($item) =>
                     (int) $item->bill->billing_year === $selectedMonth->year
                     && (int) $item->bill->billing_month === $selectedMonth->month
+                )) {
+                    return null;
+                }
+                if ($selectedYear && !$bills->contains(fn ($item) =>
+                    (int) $item->bill->billing_year === $selectedYear
                 )) {
                     return null;
                 }
@@ -312,11 +351,14 @@ class ReportsController extends Controller
             ->whereDoesntHave('paymentAllocations.paymentSubmission', fn ($query) => $query->where('status', 'approved'))
             ->whereDoesntHave('paymentSubmissions', fn ($query) => $query->where('status', 'approved'))
             ->get()
-            ->filter(function (BillingRecord $bill) use ($selectedMonth, $search) {
+            ->filter(function (BillingRecord $bill) use ($selectedMonth, $selectedYear, $search) {
                 if ($selectedMonth
                     && ((int) $bill->billing_year !== $selectedMonth->year
                         || (int) $bill->billing_month !== $selectedMonth->month)
                 ) {
+                    return false;
+                }
+                if ($selectedYear && (int) $bill->billing_year !== $selectedYear) {
                     return false;
                 }
 
